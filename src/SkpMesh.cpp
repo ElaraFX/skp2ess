@@ -1,4 +1,5 @@
 #include "SkpMesh.h"
+#include "Material.h"
 #include <ei_matrix.h>
 #include <ei_vector.h>
 #include <ei_vector2.h>
@@ -22,6 +23,9 @@ bool skp_to_ess_mesh(const char *skp_file_name, EH_Context *ctx)
 	// Get the entity container of the model.
 	SUEntitiesRef entities = SU_INVALID;
 	SUModelGetEntities(model, &entities);
+
+	// Get all materials
+	GetAllMaterials(model);
 
 	// Get all the faces from the entities object
 	size_t faceCount = 0;	
@@ -67,6 +71,20 @@ bool skp_to_ess_mesh(const char *skp_file_name, EH_Context *ctx)
 			for (int i = 0; i < convert_indices.size(); ++i)
 			{
 				convert_indices[i] = indices[i];
+			}
+
+			//Get material index
+			SUMaterialRef material = SU_INVALID;
+			if (SUFaceGetFrontMaterial(face_data, &material) == SU_ERROR_NONE)
+			{
+				CSUString name;
+				SU_CALL(SUMaterialGetNameLegacyBehavior(material, name));
+				std::string material_name = name.utf8();
+				int material_index = g_material_container.FindIndexWithString(material_name);
+				if (material_index != -1)
+				{
+					// TODO: do something with material index
+				}
 			}
 
 			//Get UV

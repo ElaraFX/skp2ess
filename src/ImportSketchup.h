@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "SkpMesh.h"
+#include "ei_matrix.h"
 
 bool import_mesh_from_skp(const char *file_name)
 {
