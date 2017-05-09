@@ -7,6 +7,7 @@
 #include <SketchUpAPI/color.h>
 #include <SketchUpAPI/common.h>
 #include <vector>
+#include <string>
 
 
 #define SU_CALL(func) if ((func) != SU_ERROR_NONE) throw std::exception()
