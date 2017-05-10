@@ -17,10 +17,10 @@
 #include "Material.h"
 #include "ImportSketchup.h"
 
-#define SKT_FILENAME "test.skp"
+#define SKP_FILENAME "test.skp"
 
 
 int main() {
-	import_mesh_from_skp(SKT_FILENAME);
+	import_mesh_from_skp(SKP_FILENAME);
 	return 0;
 }

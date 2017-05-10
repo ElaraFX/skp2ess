@@ -53,6 +53,15 @@ struct MaterialContainer {
 
 		return -1;
 	}
+
+	bool GetNameByIndex(char *pBuffer, int index)
+	{
+		if (index < 0 || index > materialinfos.size())
+			return false;
+
+		memcpy(pBuffer, materialinfos[index].name_.c_str(), materialinfos[index].name_.size());
+		return true;
+	}
 };
 extern MaterialContainer g_material_container;
 

@@ -52,7 +52,7 @@ bool import_mesh_from_skp(const char *file_name)
 	sun.soft_shadow = 50.0f;
 	EH_set_sun(pContext, &sun);
 
-	skp_to_ess_mesh(file_name, pContext);
+	skp_to_ess(file_name, pContext);
 
 	EH_end_export(pContext);
 	EH_delete(pContext);

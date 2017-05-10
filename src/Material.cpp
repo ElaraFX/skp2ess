@@ -74,6 +74,12 @@ void GetAllMaterials(SUModelRef model)
 		std::vector<SUMaterialRef> materials(count);
 		SU_CALL(SUModelGetMaterials(model, count, &materials[0], &count));
 		for (size_t i = 0; i<count; i++) {
+			// add index into each material name to avoid duplication
+			CSUString name;
+			char mat_name[128];
+			SU_CALL(SUMaterialGetNameLegacyBehavior(materials[i], name));
+			sprintf(mat_name, "%s_%d", name.utf8().c_str(), i);
+			SUMaterialSetName(materials[i], mat_name);
 			GetMaterialInfo(materials[i]);
 		}
 	}
