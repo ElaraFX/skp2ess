@@ -12,4 +12,4 @@
 
 #include "ElaraHomeAPI.h"
 
-bool skp_to_ess_mesh(const char *skp_file_name, EH_Context *ctx);
+bool skp_to_ess(const char *skp_file_name, EH_Context *ctx);
