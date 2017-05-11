@@ -17,10 +17,11 @@
 #include "Material.h"
 #include "ImportSketchup.h"
 
-#define SKP_FILENAME "test.skp"
-
+#define SKP_FILENAME "scene1.skp"
+#define SKP_PROJECTNAME "scene1"
 
 int main() {
+	g_material_container.SetProjectName(SKP_PROJECTNAME);
 	import_mesh_from_skp(SKP_FILENAME);
 	return 0;
 }

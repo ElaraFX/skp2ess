@@ -9,6 +9,8 @@
 #include <vector>
 #include <string>
 
+#include "util.h"
+
 
 #define SU_CALL(func) if ((func) != SU_ERROR_NONE) throw std::exception()
 
@@ -29,11 +31,22 @@ struct MaterialInfo {
 };
 
 struct MaterialContainer {
+	std::string projectname;
 	std::vector<MaterialInfo> materialinfos;
 
 	MaterialContainer()
 	{
 		materialinfos.clear();
+	}
+
+	void SetProjectName(const char *pName)
+	{
+		projectname = std::string(pName);
+	}
+
+	const char *GetProjectName()
+	{
+		return projectname.c_str();
 	}
 
 	void AddMaterial(MaterialInfo &materialinfo)

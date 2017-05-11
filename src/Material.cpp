@@ -50,6 +50,21 @@ void GetMaterialInfo(SUMaterialRef material)
 			CSUString texture_path;
 			SU_CALL(SUTextureGetFileName(texture, texture_path));
 			info.texture_path_ = texture_path.utf8();
+			char texPath[128];
+			const char *projectDir = g_material_container.GetProjectName();
+			if (ACCESS(projectDir, 0))
+			{
+				if (MKDIR(projectDir))
+				{
+					printf("Create directory: \'%s\' failed!", projectDir);
+				}
+			}
+			sprintf(texPath, "%s\\%s", projectDir, info.texture_path_.c_str());
+			SUResult ret = SUTextureWriteToFile(texture, texPath);
+			if (ret != SU_ERROR_NONE)
+			{
+				printf("Create texture file: \'%s\' failed!", texPath);
+			}
 
 			// Texture scale
 			size_t width = 0;
@@ -83,4 +98,6 @@ void GetAllMaterials(SUModelRef model)
 			GetMaterialInfo(materials[i]);
 		}
 	}
+
+	printf("Get all materials from skp data, number:%d", count);
 }
