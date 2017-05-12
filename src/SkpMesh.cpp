@@ -3,11 +3,16 @@
 #include <ei_matrix.h>
 #include <ei_vector.h>
 #include <ei_vector2.h>
+#include <SketchUpAPI/common.h>
 #include <SketchUpAPI/model/mesh_helper.h>
+#include <SketchUpAPI/model/scene.h>
+#include <SketchUpAPI/model/camera.h>
 
 #include <unordered_map>
 
 const std::string DEFAULT_MTL_NAME = "default_mtl";
+const int default_width = 600;
+const int default_height = 400;
 
 struct Vertex
 {
@@ -23,6 +28,7 @@ MtlMap g_mtl_map;
 
 void export_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name);
 void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl);
+void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
 
 bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 {
@@ -46,6 +52,21 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	// Get the entity container of the model.
 	SUEntitiesRef entities = SU_INVALID;
 	SUModelGetEntities(model, &entities);
+
+	// Get Camera	
+	SUCameraRef su_cam_ref = SU_INVALID;
+	SUModelGetCamera(model, &su_cam_ref);
+	if(su_cam_ref.ptr)
+	{
+		EH_Camera eh_cam;
+		convert_to_eh_camera(eh_cam, su_cam_ref);
+
+		EH_set_camera(ctx, &eh_cam);
+	}
+	else
+	{
+		printf("This scene has no active camera!\n");
+	}
 
 	// Get all materials
 	GetAllMaterials(model);
@@ -197,4 +218,64 @@ void export_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *v
 void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl)
 {
 
+}
+
+void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
+{
+	SUPoint3D postion, target;
+	SUVector3D up;
+	SUCameraGetOrientation(su_cam_ref, &postion, &target, &up);
+
+	SUTransformation trans; //column major
+	SUCameraGetViewTransformation(su_cam_ref, &trans);
+
+	double w, h;	
+	double aspect_ratio;
+	SUResult aspect_ratio_ret;
+	aspect_ratio_ret = SUCameraGetAspectRatio(su_cam_ref, &aspect_ratio);
+	if(aspect_ratio_ret == SU_ERROR_NONE)
+	{
+		SUCameraGetImageWidth(su_cam_ref, &w);
+		h = w / aspect_ratio;
+	}
+	else
+	{		
+		//set default width and height
+		w = default_width;
+		h = default_height;
+		aspect_ratio = w / h;
+	}
+
+	double f, n;
+	SUCameraGetClippingDistances(su_cam_ref, &n, &f);
+
+	double fov;
+	SUCameraGetPerspectiveFrustumFOV(su_cam_ref, &fov);
+
+	eiMatrix ei_tran = ei_matrix(
+		trans.values[0], trans.values[4], trans.values[8], trans.values[12],
+		trans.values[1], trans.values[5], trans.values[9], trans.values[13],
+		trans.values[2], trans.values[6], trans.values[10], trans.values[14],
+		postion.x, postion.y, postion.z, trans.values[15]
+	);
+
+	bool is_height_fov;
+	SUCameraGetFOVIsHeight(su_cam_ref, &is_height_fov);
+	if(is_height_fov)
+	{
+		//vertical fov -> horizonal fov
+		float w_fov = std::atan((w/2) / (h/2/std::tan(radians(fov/2)))) * 2;
+		fov = w_fov;
+	}
+	else
+	{
+		fov = radians(fov);
+	}
+
+	cam.image_width = w;
+	cam.image_height = h;
+	cam.near_clip = n;
+	cam.far_clip = f * 100; //SketchUp far clip is small
+	cam.fov = fov;
+	memcpy(cam.view_to_world, &ei_tran.m[0], sizeof(cam.view_to_world));
 }
