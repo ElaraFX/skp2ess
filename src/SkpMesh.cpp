@@ -217,7 +217,14 @@ void export_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *v
 
 void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl)
 {
+	// Get name
+	CSUString name;
+	SU_CALL(SUMaterialGetNameLegacyBehavior(skp_mtl, name));
+	int index = g_material_container.FindIndexWithString(name.utf8());
+	MaterialInfo &mtl_info = g_material_container.materialinfos[index];
 
+	eh_mtl.diffuse_tex.filename = mtl_info.texture_path_.c_str();
+	eh_mtl.diffuse_tex.repeat = mtl_info.texture_sscale_; //EH API scale都是对称的
 }
 
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)

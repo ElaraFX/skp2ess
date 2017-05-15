@@ -56,14 +56,14 @@ void GetMaterialInfo(SUMaterialRef material)
 			{
 				if (MKDIR(projectDir))
 				{
-					printf("Create directory: \'%s\' failed!", projectDir);
+					printf("Create directory: \'%s\' failed!\n", projectDir);
 				}
 			}
 			sprintf(texPath, "%s\\%s", projectDir, info.texture_name_.c_str());
 			SUResult ret = SUTextureWriteToFile(texture, texPath);
 			if (ret != SU_ERROR_NONE)
 			{
-				printf("Create texture file: \'%s\' failed!", texPath);
+				printf("Create texture file: \'%s\' failed!\n", texPath);
 			}
 
 			// Set texture full path
@@ -102,5 +102,5 @@ void GetAllMaterials(SUModelRef model)
 		}
 	}
 
-	printf("Get all materials from skp data, number:%d", count);
+	printf("Get all materials from skp data, number:%d\n", count);
 }
