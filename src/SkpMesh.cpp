@@ -224,7 +224,8 @@ void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl)
 	MaterialInfo &mtl_info = g_material_container.materialinfos[index];
 
 	eh_mtl.diffuse_tex.filename = mtl_info.texture_path_.c_str();
-	eh_mtl.diffuse_tex.repeat = mtl_info.texture_sscale_; //EH API scale都是对称的
+	eh_mtl.diffuse_tex.repeat_u = (1.0f / mtl_info.texture_sscale_);
+	eh_mtl.diffuse_tex.repeat_v = (1.0f / mtl_info.texture_tscale_);
 }
 
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
