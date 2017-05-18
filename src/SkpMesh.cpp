@@ -7,6 +7,7 @@
 #include <SketchUpAPI/model/mesh_helper.h>
 #include <SketchUpAPI/model/scene.h>
 #include <SketchUpAPI/model/camera.h>
+#include <SketchUpAPI/model/component_definition.h>
 
 #include <unordered_map>
 
@@ -21,13 +22,26 @@ struct Vertex
 	std::vector<uint_t> indices;
 };
 
+struct UVScale
+{
+	float u, v;
+
+	UVScale():
+		u(1.0),
+		v(1.0)
+		{
+
+		}
+};
+
 typedef std::unordered_map<std::string, Vertex*> MtlVertexMap;
 MtlVertexMap g_mtl_to_vertex_map;
 typedef std::unordered_map<std::string, EH_Material> MtlMap;
 MtlMap g_mtl_map;
 
-void export_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name);
-void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl);
+void export_mesh_mtl_from_entities(SUEntitiesRef entities);
+void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name);
+void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_scale);
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
 
 bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
@@ -72,95 +86,29 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	GetAllMaterials(model);
 
 	// Get all the faces from the entities object
-	size_t faceCount = 0;	
-	const size_t MAX_NAME_LENGTH = 128;
-	SUEntitiesGetNumFaces(entities, &faceCount);
-	if (faceCount > 0) {
-		std::vector<SUFaceRef> faces(faceCount);
-		SUEntitiesGetFaces(entities, faceCount, &faces[0], &faceCount);
+	export_mesh_mtl_from_entities(entities);
 
-		// Get all the edges in this face
-		for (size_t face_count_i = 0; face_count_i < faceCount; ++face_count_i) {
-			SUFaceRef &face_data = faces[face_count_i];
+	// Get external component entities
+	size_t component_num;
+	SUModelGetNumComponentDefinitions(model, &component_num);
+	if(component_num > 0)
+	{
+		std::vector<SUComponentDefinitionRef> definitions(component_num);
+		SUModelGetComponentDefinitions(model, component_num, &definitions[0], &component_num);		
 
-			SUMeshHelperRef mesh_ref = SU_INVALID;
-			SUMeshHelperCreate(&mesh_ref, face_data);
+		for (int ci = 0; ci < component_num; ++ci)
+		{
+			SUComponentDefinitionRef &com = definitions[ci];
+			SUPoint3D p;
+			SUComponentDefinitionGetInsertPoint(com, &p);
 
-			//Get material index
-			std::string mat_name = DEFAULT_MTL_NAME;
-			SUMaterialRef material = SU_INVALID;
-			if (SUFaceGetFrontMaterial(face_data, &material) == SU_ERROR_NONE)
-			{
-				CSUString name;
-				SU_CALL(SUMaterialGetNameLegacyBehavior(material, name));
-				std::string material_name = name.utf8();
-				int material_index = g_material_container.FindIndexWithString(material_name);
-				if (material_index != -1)
-				{
-					// TODO: do something with material index
-					MtlMap::iterator it = g_mtl_map.find(material_name);
-					if (it == g_mtl_map.end())
-					{
-						//Add new material
-						EH_Material eh_mat;
-						convert_to_eh_mtl(eh_mat, material);
-						g_mtl_map.insert(std::pair<std::string, EH_Material>(material_name, eh_mat));
-					}
+			SUEntitiesRef c_entities;
+			SUComponentDefinitionGetEntities(com, &c_entities);
 
-					mat_name = material_name;
-				}
-			}
-
-			//Get vertices
-			size_t num_vertices = 0;
-			SUMeshHelperGetNumVertices(mesh_ref, &num_vertices);
-			if (num_vertices == 0)
-			{
-				printf("number of vertices is 0!\n");
-				return false;
-			}
-			std::vector<SUPoint3D> vertices(num_vertices);
-			SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);
-			//std::vector<eiVector> convert_vertices(num_vertices);
-			Vertex *pContainVertex = NULL;
-			MtlVertexMap::iterator vit = g_mtl_to_vertex_map.find(mat_name);
-			if (vit == g_mtl_to_vertex_map.end())
-			{
-				Vertex *p_new_vertex = new Vertex();
-				g_mtl_to_vertex_map.insert(std::pair<std::string, Vertex*>(mat_name, p_new_vertex));
-				pContainVertex = p_new_vertex;
-			}
-			else
-			{
-				pContainVertex = vit->second;
-			}
-			for (int i = 0; i < num_vertices; ++i)
-			{
-				pContainVertex->vertices.push_back(ei_vector(vertices[i].x, vertices[i].y, vertices[i].z));
-			}
-
-			//Get triangle indices
-			size_t num_triangles = 0;
-			SUMeshHelperGetNumTriangles(mesh_ref, &num_triangles);
-			const size_t num_indices = 3 * num_triangles;
-			size_t num_retrieved = 0;
-			std::vector<size_t> indices(num_indices);
-			SUMeshHelperGetVertexIndices(mesh_ref, num_indices, &indices[0], &num_retrieved);
-			for (int i = 0; i < num_indices; ++i)
-			{
-				pContainVertex->indices.push_back(pContainVertex->vertices.size() - num_vertices + indices[i]);
-			}
-			
-			//Get UV
-			std::vector<SUPoint3D> front_stq(num_vertices);
-			size_t count = 0;
-			SUMeshHelperGetFrontSTQCoords(mesh_ref, num_vertices, &front_stq[0], &count);
-			for (int i = 0; i < num_vertices; ++i)
-			{
-				pContainVertex->uvs.push_back(ei_vector2(front_stq[i].x, front_stq[i].y));
-			}			
+			export_mesh_mtl_from_entities(c_entities);
 		}
-	}
+	}	
+
 
 	int poly_index = 0;
 	for (MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin();
@@ -168,7 +116,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	{
 		char poly_name[128];
 		sprintf(poly_name, "ploy_mesh_%d", poly_index);
-		export_mesh_and_mtl(ctx, iter->first, iter->second, poly_name);
+		convert_mesh_and_mtl(ctx, iter->first, iter->second, poly_name);
 
 		delete iter->second;
 
@@ -186,7 +134,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	return true;
 }
 
-void export_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name)
+void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name)
 {
 	//Fill with data in EH_Mesh
 	EH_Mesh eh_mesh_data;
@@ -215,7 +163,7 @@ void export_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *v
 	EH_add_mesh_instance(ctx, export_inst_name.c_str(), &inst);
 }
 
-void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl)
+void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_scale)
 {
 	// Get name
 	CSUString name;
@@ -224,8 +172,6 @@ void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl)
 	MaterialInfo &mtl_info = g_material_container.materialinfos[index];
 
 	eh_mtl.diffuse_tex.filename = mtl_info.texture_path_.c_str();
-	eh_mtl.diffuse_tex.repeat_u = (1.0f / mtl_info.texture_sscale_);
-	eh_mtl.diffuse_tex.repeat_v = (1.0f / mtl_info.texture_tscale_);
 }
 
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
@@ -286,4 +232,97 @@ void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
 	cam.far_clip = f * 100; //SketchUp far clip is small
 	cam.fov = fov;
 	memcpy(cam.view_to_world, &ei_tran.m[0], sizeof(cam.view_to_world));
+}
+
+void export_mesh_mtl_from_entities(SUEntitiesRef entities)
+{
+	size_t faceCount = 0;	
+	const size_t MAX_NAME_LENGTH = 128;
+	SUEntitiesGetNumFaces(entities, &faceCount);
+	if (faceCount > 0) {
+		std::vector<SUFaceRef> faces(faceCount);
+		SUEntitiesGetFaces(entities, faceCount, &faces[0], &faceCount);
+
+		// Get all the edges in this face
+		for (size_t face_count_i = 0; face_count_i < faceCount; ++face_count_i) {
+			SUFaceRef &face_data = faces[face_count_i];
+
+			SUMeshHelperRef mesh_ref = SU_INVALID;
+			SUMeshHelperCreate(&mesh_ref, face_data);
+
+			//Get material index
+			UVScale uv_scale;
+			std::string mat_name = DEFAULT_MTL_NAME;
+			SUMaterialRef material = SU_INVALID;
+			if (SUFaceGetFrontMaterial(face_data, &material) == SU_ERROR_NONE)
+			{
+				CSUString name;
+				SU_CALL(SUMaterialGetNameLegacyBehavior(material, name));
+				std::string material_name = name.utf8();
+				int material_index = g_material_container.FindIndexWithString(material_name);
+				if (material_index != -1)
+				{
+					// TODO: do something with material index
+					MtlMap::iterator it = g_mtl_map.find(material_name);
+					if (it == g_mtl_map.end())
+					{
+						//Add new material
+						EH_Material eh_mat;
+						convert_to_eh_mtl(eh_mat, material, uv_scale);
+						g_mtl_map.insert(std::pair<std::string, EH_Material>(material_name, eh_mat));
+					}
+
+					mat_name = material_name;
+				}
+			}
+
+			//Get vertices
+			size_t num_vertices = 0;
+			SUMeshHelperGetNumVertices(mesh_ref, &num_vertices);
+			if (num_vertices == 0)
+			{
+				printf("number of vertices is 0!\n");
+			}
+			std::vector<SUPoint3D> vertices(num_vertices);
+			SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);
+			//std::vector<eiVector> convert_vertices(num_vertices);
+			Vertex *pContainVertex = NULL;
+			MtlVertexMap::iterator vit = g_mtl_to_vertex_map.find(mat_name);
+			if (vit == g_mtl_to_vertex_map.end())
+			{
+				Vertex *p_new_vertex = new Vertex();
+				g_mtl_to_vertex_map.insert(std::pair<std::string, Vertex*>(mat_name, p_new_vertex));
+				pContainVertex = p_new_vertex;
+			}
+			else
+			{
+				pContainVertex = vit->second;
+			}
+			for (int i = 0; i < num_vertices; ++i)
+			{
+				pContainVertex->vertices.push_back(ei_vector(vertices[i].x, vertices[i].y, vertices[i].z));
+			}
+
+			//Get triangle indices
+			size_t num_triangles = 0;
+			SUMeshHelperGetNumTriangles(mesh_ref, &num_triangles);
+			const size_t num_indices = 3 * num_triangles;
+			size_t num_retrieved = 0;
+			std::vector<size_t> indices(num_indices);
+			SUMeshHelperGetVertexIndices(mesh_ref, num_indices, &indices[0], &num_retrieved);
+			for (int i = 0; i < num_indices; ++i)
+			{
+				pContainVertex->indices.push_back(pContainVertex->vertices.size() - num_vertices + indices[i]);
+			}
+
+			//Get UV
+			std::vector<SUPoint3D> front_stq(num_vertices);
+			size_t count = 0;
+			SUMeshHelperGetFrontSTQCoords(mesh_ref, num_vertices, &front_stq[0], &count);
+			for (int i = 0; i < num_vertices; ++i)
+			{
+				pContainVertex->uvs.push_back(ei_vector2(front_stq[i].x * uv_scale.u, front_stq[i].y * uv_scale.v));
+			}			
+		}
+	}
 }
