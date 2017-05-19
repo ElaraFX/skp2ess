@@ -172,6 +172,10 @@ void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_s
 	MaterialInfo &mtl_info = g_material_container.materialinfos[index];
 
 	eh_mtl.diffuse_tex.filename = mtl_info.texture_path_.c_str();
+	if (mtl_info.has_alpha_)
+	{
+		eh_mtl.transp_weight = mtl_info.alpha_;
+	}	
 }
 
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
