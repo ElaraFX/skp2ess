@@ -8,12 +8,15 @@
 #include <SketchUpAPI/model/scene.h>
 #include <SketchUpAPI/model/camera.h>
 #include <SketchUpAPI/model/component_definition.h>
+#include <SketchUpAPI/model/shadow_info.h>
+#include <SketchUpAPI/unicodestring.h>
+#include <SketchUpAPI/model/typed_value.h>
 
 #include <unordered_map>
 
 const std::string DEFAULT_MTL_NAME = "default_mtl";
-const int default_width = 600;
-const int default_height = 400;
+const int default_width = 1280;
+const int default_height = 720;
 
 struct Vertex
 {
@@ -45,7 +48,7 @@ void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_s
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
 
 bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
-{
+{	
 	// Always initialize the API before using it
 	SUInitialize();
 
@@ -56,6 +59,10 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 
 	//Add a default material
 	EH_Material default_mat;
+	default_mat.diffuse_color[0] = 1.0f;
+	default_mat.diffuse_color[1] = 1.0f;
+	default_mat.diffuse_color[2] = 1.0f;
+	default_mat.diffuse_weight = 0.7f;
 	g_mtl_map.insert(std::pair<std::string, EH_Material>(DEFAULT_MTL_NAME, default_mat));
 
 	// It's best to always check the return code from each SU function call.
@@ -80,6 +87,53 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	else
 	{
 		printf("This scene has no active camera!\n");
+	}
+
+	//Get shadow info
+	SUShadowInfoRef shadow_info;
+	SUResult get_sun_dir_ret;
+	SUTypedValueRef dir_val;
+	SUTypedValueCreate(&dir_val);
+	static char *shadow_key = "SunDirection";
+	if(SUModelGetShadowInfo(model, &shadow_info) == SU_ERROR_NONE)
+	{
+		size_t shadow_key_count = 0;
+		SUShadowInfoGetNumKeys(shadow_info, &shadow_key_count);
+		if(shadow_key_count > 0)
+		{
+			get_sun_dir_ret = SUShadowInfoGetValue(shadow_info, "SunDirection", &dir_val);
+		}
+		
+	}
+	
+	if(get_sun_dir_ret == SU_ERROR_NONE)
+	{		
+		double vector3d_val[3];
+		SUTypedValueGetVector3d(dir_val, vector3d_val);
+		printf("x = %f, y = %f, z = %f\n", vector3d_val[0], vector3d_val[1], vector3d_val[2]);
+
+		EH_Sun sun;
+		sun.dir[0] = std::acos(vector3d_val[2]);
+		float phi = std::atan(vector3d_val[1]/vector3d_val[0]);
+		if(vector3d_val[1] > 0.0f)
+		{
+			phi = phi;
+		}
+		else
+		{
+			phi = phi + EI_PI;
+		}
+
+		sun.dir[1] = phi; 
+		float color[3] = {0.94902, 0.776471, 0.619608};
+		memcpy(sun.color, color, sizeof(color));
+		sun.intensity = 30.4;
+		sun.soft_shadow = 1.0f;
+		EH_set_sun(ctx, &sun);
+	}
+	else
+	{
+		printf("Get sun direction error ! error code = %d\n", get_sun_dir_ret);
 	}
 
 	// Get all materials
@@ -107,8 +161,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 
 			export_mesh_mtl_from_entities(c_entities);
 		}
-	}	
-
+	}
 
 	int poly_index = 0;
 	for (MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin();
@@ -175,6 +228,33 @@ void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_s
 	if (mtl_info.has_alpha_)
 	{
 		eh_mtl.transp_weight = mtl_info.alpha_;
+	}
+
+	std::string tex_file_name = mtl_info.texture_path_.c_str();
+	if(tex_file_name.find("cloth_std_01") != std::string::npos)
+	{
+		eh_mtl.diffuse_weight = 1.0f;
+	}
+	else if(tex_file_name.find("glass_std_01") != std::string::npos)
+	{
+	}
+	else if(tex_file_name.find("marble_std_01") != std::string::npos)
+	{
+		eh_mtl.diffuse_weight = 0.7f;
+		eh_mtl.glossiness = 90.0f;
+		eh_mtl.specular_weight = 0.2f;
+	}
+	else if(tex_file_name.find("light_std_01") != std::string::npos)
+	{
+	}
+	else if(tex_file_name.find("wood_std") != std::string::npos)
+	{
+		eh_mtl.diffuse_weight = 0.7;
+		eh_mtl.specular_weight = 0.2;
+		eh_mtl.glossiness = 90.0;
+	}
+	else if(tex_file_name.find("cloth_std_01") != std::string::npos)
+	{
 	}	
 }
 
