@@ -93,7 +93,8 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	SUShadowInfoRef shadow_info;
 	SUResult get_sun_dir_ret;
 	SUTypedValueRef dir_val;
-	SUTypedValueCreate(&dir_val);
+	dir_val.ptr = NULL;
+	SUResult create_val_ret = SUTypedValueCreate(&dir_val);
 	static char *shadow_key = "SunDirection";
 	if(SUModelGetShadowInfo(model, &shadow_info) == SU_ERROR_NONE)
 	{
@@ -111,11 +112,13 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		double vector3d_val[3];
 		SUTypedValueGetVector3d(dir_val, vector3d_val);
 		printf("x = %f, y = %f, z = %f\n", vector3d_val[0], vector3d_val[1], vector3d_val[2]);
+		vector3d_val[0] = -vector3d_val[0];
+		vector3d_val[1] = -vector3d_val[1];
 
 		EH_Sun sun;
 		sun.dir[0] = std::acos(vector3d_val[2]);
 		float phi = std::atan(vector3d_val[1]/vector3d_val[0]);
-		if(vector3d_val[1] > 0.0f)
+		if(vector3d_val[0] > 0.0f)
 		{
 			phi = phi;
 		}
@@ -125,6 +128,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		}
 
 		sun.dir[1] = phi; 
+		//printf("theta = %f, phi = %f\n", sun.dir[0] * (180.0/EI_PI), sun.dir[1] * (180.0/EI_PI));
 		float color[3] = {0.94902, 0.776471, 0.619608};
 		memcpy(sun.color, color, sizeof(color));
 		sun.intensity = 30.4;
@@ -135,6 +139,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	{
 		printf("Get sun direction error ! error code = %d\n", get_sun_dir_ret);
 	}
+	SUTypedValueRelease(&dir_val);
 
 	// Get all materials
 	GetAllMaterials(model);
