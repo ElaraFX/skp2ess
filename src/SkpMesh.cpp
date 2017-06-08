@@ -43,8 +43,8 @@ MtlVertexMap g_mtl_to_vertex_map;
 typedef std::unordered_map<std::string, EH_Material> MtlMap;
 MtlMap g_mtl_map;
 
-typedef std::unordered_map<std::string, EH_Light> LightsMap;
-LightsMap light_unorder_map;
+typedef std::vector<EH_Light> LightsVector;
+LightsVector light_vector;
 
 void export_mesh_mtl_from_entities(SUEntitiesRef entities);
 void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name);
@@ -138,7 +138,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		memcpy(sun.color, color, sizeof(color));
 		sun.intensity = 30.4;
 		sun.soft_shadow = 1.0f;
-		//EH_set_sun(ctx, &sun);
+		EH_set_sun(ctx, &sun);
 	}
 	else
 	{
@@ -356,31 +356,26 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 				CSUString name;
 				SU_CALL(SUMaterialGetNameLegacyBehavior(material, name));
 				std::string material_name = name.utf8();
-				//printf("material_name = %s\n", material_name);
 				if(material_name.find("ehlight") != std::string::npos)
 				{
-					//printf("material_name = %s\n", material_name.c_str());
-					if(light_unorder_map.find(material_name) == light_unorder_map.end())
-					{
-						EH_Light light;
-						light.intensity = 100000.0f;
-						light.type = EH_LIGHT_IES;
-						light.ies_filename = "./19.ies";
-						//memcpy(light.light_to_world, 
-						std::vector<SUPoint3D> vertices(1);
-						size_t actually_count;
-						SUMeshHelperGetVertices(mesh_ref, 1, &vertices[0], &actually_count);
-						eiMatrix ei_tran = ei_matrix(
-							1.0f, 0, 0, 0,
-							0, 1.0f, 0, 0,
-							0, 0, 1.0f, 0,
-							vertices[0].x, vertices[0].y, vertices[0].z, 1.0f
-						);
-						light.size[0] = 10000;
-						memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
+					EH_Light light;
+					light.intensity = 100000.0f;
+					light.type = EH_LIGHT_IES;
+					light.ies_filename = "./19.ies";
+					//memcpy(light.light_to_world, 
+					std::vector<SUPoint3D> vertices(1);
+					size_t actually_count;
+					SUMeshHelperGetVertices(mesh_ref, 1, &vertices[0], &actually_count);
+					eiMatrix ei_tran = ei_matrix(
+						1.0f, 0, 0, 0,
+						0, 1.0f, 0, 0,
+						0, 0, 1.0f, 0,
+						vertices[0].x, vertices[0].y, vertices[0].z, 1.0f
+					);
+					light.size[0] = 10000;
+					memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
 
-						light_unorder_map.insert(std::make_pair(material_name, light));
-					}
+					light_vector.push_back(light);
 
 					continue;
 				}
@@ -453,11 +448,12 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 
 void export_light(EH_Context *ctx)
 {
-	for(LightsMap::iterator iter = light_unorder_map.begin(); iter != light_unorder_map.end();
-		++iter)
+	char light_inst_name[64];
+	for(int i = 0; i < light_vector.size(); ++i)
 	{
-		EH_add_light(ctx, iter->first.c_str(), &iter->second);
+		sprintf(light_inst_name, "IES_light_inst%d", i);
+		EH_add_light(ctx, light_inst_name, &light_vector[i]);
 	}
 
-	light_unorder_map.clear();
+	light_vector.clear();
 }

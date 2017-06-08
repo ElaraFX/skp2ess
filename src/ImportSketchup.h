@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "SkpMesh.h"
-#include "ei_matrix.h"
 
 bool import_mesh_from_skp(const char *file_name)
 {
@@ -28,29 +27,29 @@ bool import_mesh_from_skp(const char *file_name)
 
 	EH_Sky sky;
 	sky.enabled = true;
-	sky.hdri_name = "013.hdr";
-	sky.hdri_rotation = false;
-	sky.intensity = 2.0f;
+	sky.hdri_name = "050.hdr";
+	sky.hdri_rotation = radians(-36);
+	sky.intensity = 0.0f;
 	EH_set_sky(pContext, &sky);
 
-	EH_Camera cam;
+	/*EH_Camera cam;
 	cam.fov = radians(45);
 	cam.near_clip = 0.01f;
 	cam.far_clip = 1000.0f;
 	cam.image_width = 640;
 	cam.image_height = 480;
 	eiMatrix cam_tran = ei_matrix(0.731353, -0.681999, -0.0, 0.0, 0.255481, 0.27397, 0.927184, 0.0, -0.632338, -0.678099, 0.374607, 0.0, -38.681263, -49.142731, 21.895681, 1.0);
-	memcpy(cam.view_to_world, &cam_tran.m[0][0], sizeof(EH_Mat));
-	EH_set_camera(pContext, &cam);
+	memcpy(cam.view_to_world, &cam_tran.m[0][0], sizeof(EH_Mat));*/
+	//EH_set_camera(pContext, &cam);
 
-	EH_Sun sun;
-	sun.dir[0] = radians(75); 
-	sun.dir[1] = radians(46); 
-	float color[3] = {1, 1, 1};
+	/*EH_Sun sun;
+	sun.dir[0] = radians(70); 
+	sun.dir[1] = radians(46 + 70); 
+	float color[3] = {0.94902, 0.776471, 0.619608};
 	memcpy(sun.color, color, sizeof(color));
-	sun.intensity = 3.14;
-	sun.soft_shadow = 50.0f;
-	EH_set_sun(pContext, &sun);
+	sun.intensity = 31.4;
+	sun.soft_shadow = 1.0;
+	EH_set_sun(pContext, &sun);*/
 
 	skp_to_ess(file_name, pContext);
 
