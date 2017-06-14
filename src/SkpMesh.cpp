@@ -14,10 +14,14 @@
 #include <SketchUpAPI/model/typed_value.h>
 
 #include <unordered_map>
+#include <boost/filesystem.hpp>
+#include <boost/filesystem/detail/utf8_codecvt_facet.hpp>
 
 const std::string DEFAULT_MTL_NAME = "default_mtl";
 const int default_width = 1280;
 const int default_height = 720;
+
+const std::string MAT_PATH = "./materials";
 
 struct Vertex
 {
@@ -43,6 +47,8 @@ MtlVertexMap g_mtl_to_vertex_map;
 typedef std::unordered_map<std::string, EH_Material> MtlMap;
 MtlMap g_mtl_map;
 
+std::vector<std::string> mat_list;
+
 typedef std::vector<EH_Light> LightsVector;
 LightsVector light_vector;
 
@@ -51,6 +57,30 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_scale);
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
 void export_light(EH_Context *ctx);
+void import_mat_list();
+
+#ifdef _MSC_VER
+std::wstring to_utf16(std::string str);
+#endif
+
+void import_mat_list()
+{
+	std::locale global_loc = std::locale(); 
+	std::locale loc(global_loc, new boost::filesystem::detail::utf8_codecvt_facet); 
+	boost::filesystem::path::imbue(loc); 
+	boost::filesystem::path p(MAT_PATH);
+	for (boost::filesystem::directory_iterator i = boost::filesystem::directory_iterator(p); i != boost::filesystem::directory_iterator(); i++)
+	{
+		if (!is_directory(i->path())) //we eliminate directories
+		{
+			const std::string &filename = i->path().filename().string();
+			//printf("mat name %s\n", filename.c_str());
+			mat_list.push_back(filename.substr(0, filename.find('.')));
+		}
+		else
+			continue;
+	}
+}
 
 bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 {	
@@ -74,6 +104,9 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	// Only showing this check once to keep this example short.
 	if (res != SU_ERROR_NONE)
 		return false;
+
+	//import material list
+	import_mat_list();
 
 	// Get the entity container of the model.
 	SUEntitiesRef entities = SU_INVALID;
@@ -117,8 +150,6 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		double vector3d_val[3];
 		SUTypedValueGetVector3d(dir_val, vector3d_val);
 		printf("x = %f, y = %f, z = %f\n", vector3d_val[0], vector3d_val[1], vector3d_val[2]);
-		vector3d_val[0] = -vector3d_val[0];
-		vector3d_val[1] = -vector3d_val[1];
 
 		EH_Sun sun;
 		sun.dir[0] = std::acos(vector3d_val[2]);
@@ -212,9 +243,32 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 	std::string export_mesh_name = poly_name + "_mesh";
 	EH_add_mesh(ctx, export_mesh_name.c_str(), &eh_mesh_data);
 
-	EH_Material mat = g_mtl_map[mtl_name];
-	EH_add_material(ctx, mtl_name.c_str(), &mat);
-	//reinterpret_cast<EssExporter*>(ctx)->AddMaterialFromEss(mat, mtl_name.c_str(), "test_mtl.ess");
+	EH_Material mat = g_mtl_map[mtl_name];	
+	bool find_map_material = false;
+	std::string import_ess_filename;
+	if(mat.diffuse_tex.filename)
+	{
+		std::string tex_filename = mat.diffuse_tex.filename;		
+		for(int i = 0; i < mat_list.size(); ++i)
+		{
+			if(tex_filename.find(mat_list[i]) != std::string::npos)
+			{
+				find_map_material = true;
+				printf("tex = %s\n", tex_filename.c_str());
+				import_ess_filename = MAT_PATH + "/" + mat_list[i] + ".ess";
+				break;
+			}
+		}
+	}
+	
+	if(find_map_material)
+	{
+		reinterpret_cast<EssExporter*>(ctx)->AddMaterialFromEss(mat, mtl_name.c_str(), (char*)to_utf16(import_ess_filename).c_str());
+	}
+	else
+	{
+		EH_add_material(ctx, mtl_name.c_str(), &mat);
+	}	
 	EH_MeshInstance inst;
 	inst.mesh_name = export_mesh_name.c_str();
 	inst.mtl_names[0] = mtl_name.c_str();
@@ -240,35 +294,35 @@ void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_s
 	eh_mtl.diffuse_tex.filename = mtl_info.texture_path_.c_str();
 	if (mtl_info.has_alpha_)
 	{
-		eh_mtl.transp_weight = mtl_info.alpha_;
+		eh_mtl.transp_weight = 1.0 - mtl_info.alpha_;
 	}
 
-	std::string tex_file_name = mtl_info.texture_path_.c_str();
-	if(tex_file_name.find("cloth_std_01") != std::string::npos)
-	{
-		eh_mtl.diffuse_weight = 1.0f;
-	}
-	else if(tex_file_name.find("glass_std_01") != std::string::npos)
-	{
-	}
-	else if(tex_file_name.find("marble_std_01") != std::string::npos)
-	{
-		eh_mtl.diffuse_weight = 0.7f;
-		eh_mtl.glossiness = 90.0f;
-		eh_mtl.specular_weight = 0.2f;
-	}
-	else if(tex_file_name.find("light_std_01") != std::string::npos)
-	{
-	}
-	else if(tex_file_name.find("wood_std") != std::string::npos)
-	{
-		eh_mtl.diffuse_weight = 0.7;
-		eh_mtl.specular_weight = 0.2;
-		eh_mtl.glossiness = 90.0;
-	}
-	else if(tex_file_name.find("cloth_std_01") != std::string::npos)
-	{
-	}
+	//std::string tex_file_name = mtl_info.texture_path_.c_str();
+	//if(tex_file_name.find("cloth_std_01") != std::string::npos)
+	//{
+	//	eh_mtl.diffuse_weight = 1.0f;
+	//}
+	//else if(tex_file_name.find("glass_std_01") != std::string::npos)
+	//{
+	//}
+	//else if(tex_file_name.find("marble_std_01") != std::string::npos)
+	//{
+	//	eh_mtl.diffuse_weight = 0.7f;
+	//	eh_mtl.glossiness = 90.0f;
+	//	eh_mtl.specular_weight = 0.2f;
+	//}
+	//else if(tex_file_name.find("light_std_01") != std::string::npos)
+	//{
+	//}
+	//else if(tex_file_name.find("wood_std") != std::string::npos)
+	//{
+	//	eh_mtl.diffuse_weight = 0.7;
+	//	eh_mtl.specular_weight = 0.2;
+	//	eh_mtl.glossiness = 90.0;
+	//}
+	//else if(tex_file_name.find("cloth_std_01") != std::string::npos)
+	//{
+	//}
 }
 
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
@@ -457,3 +511,17 @@ void export_light(EH_Context *ctx)
 
 	light_vector.clear();
 }
+
+#ifdef _MSC_VER
+std::wstring to_utf16(std::string str)
+{
+	std::wstring ret;
+	int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.length(), NULL, 0);
+	if (len > 0)
+	{
+		ret.resize(len);
+		MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.length(), &ret[0], len);
+	}
+	return ret;
+}
+#endif
