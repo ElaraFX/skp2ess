@@ -37,9 +37,9 @@ struct UVScale
 	UVScale():
 		u(1.0),
 		v(1.0)
-		{
+	{
 
-		}
+	}
 };
 
 typedef std::unordered_map<std::string, Vertex*> MtlVertexMap;
@@ -69,17 +69,21 @@ void import_mat_list()
 	std::locale loc(global_loc, new boost::filesystem::detail::utf8_codecvt_facet); 
 	boost::filesystem::path::imbue(loc); 
 	boost::filesystem::path p(MAT_PATH);
-	for (boost::filesystem::directory_iterator i = boost::filesystem::directory_iterator(p); i != boost::filesystem::directory_iterator(); i++)
+	bool is_path_valid = boost::filesystem::exists(p);
+	if(is_path_valid)
 	{
-		if (!is_directory(i->path())) //we eliminate directories
+		for (boost::filesystem::directory_iterator i = boost::filesystem::directory_iterator(p); i != boost::filesystem::directory_iterator(); i++)
 		{
-			const std::string &filename = i->path().filename().string();
-			//printf("mat name %s\n", filename.c_str());
-			mat_list.push_back(filename.substr(0, filename.find('.')));
+			if (!is_directory(i->path())) //we eliminate directories
+			{
+				const std::string &filename = i->path().filename().string();
+				//printf("mat name %s\n", filename.c_str());
+				mat_list.push_back(filename.substr(0, filename.find('.')));
+			}
+			else
+				continue;
 		}
-		else
-			continue;
-	}
+	}	
 }
 
 bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
@@ -142,9 +146,9 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		{
 			get_sun_dir_ret = SUShadowInfoGetValue(shadow_info, "SunDirection", &dir_val);
 		}
-		
+
 	}
-	
+
 	if(get_sun_dir_ret == SU_ERROR_NONE)
 	{		
 		double vector3d_val[3];
@@ -260,7 +264,7 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 			}
 		}
 	}
-	
+
 	if(find_map_material)
 	{
 		reinterpret_cast<EssExporter*>(ctx)->AddMaterialFromEss(mat, mtl_name.c_str(), (char*)to_utf16(import_ess_filename).c_str());
