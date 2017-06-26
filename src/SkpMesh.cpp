@@ -16,10 +16,12 @@
 #include <unordered_map>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/detail/utf8_codecvt_facet.hpp>
+#include <limits>
 
 const std::string DEFAULT_MTL_NAME = "default_mtl";
 const int default_width = 1280;
 const int default_height = 720;
+const float REMOVE_VERTEX_EPS = 0.00000001;
 
 const std::string MAT_PATH = "./materials";
 
@@ -28,6 +30,7 @@ struct Vertex
 	std::vector<eiVector> vertices;
 	std::vector<eiVector2> uvs;
 	std::vector<uint_t> indices;
+	std::vector<eiVector> normals;
 };
 
 struct UVScale
@@ -35,7 +38,7 @@ struct UVScale
 	float u, v;
 
 	UVScale():
-		u(1.0),
+	u(1.0),
 		v(1.0)
 	{
 
@@ -236,6 +239,64 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 
 void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name)
 {
+	//Generate normals
+	for (int i = 0; i < vertex->vertices.size(); ++i)
+	{
+		float weight = 1.0f;
+		eiVector normal = ei_vector(0.0f, 0.0f, 0.0f);
+		for (int j = 0; j < vertex->indices.size(); j += 3)
+		{
+			/*if(vertex->indices[j] == i || vertex->indices[j + 1] == i || vertex->indices[j + 2] == i)
+			{
+
+			}*/
+			eiVector cal_vertex;
+			eiVector prev_vertex;
+			eiVector next_vertex;
+			bool is_find_vertex_face = false;
+			if(vertex->indices[j] == i)
+			{
+				is_find_vertex_face = true;
+				cal_vertex = vertex->vertices[vertex->indices[j]];
+				next_vertex = vertex->vertices[vertex->indices[j + 1]];
+				prev_vertex = vertex->vertices[vertex->indices[j + 2]];
+			}
+			else if(vertex->indices[j + 1] == i)
+			{
+				is_find_vertex_face = true;
+				cal_vertex = vertex->vertices[vertex->indices[j + 1]];
+				next_vertex = vertex->vertices[vertex->indices[j + 2]];
+				prev_vertex = vertex->vertices[vertex->indices[j]];
+			}
+			else if(vertex->indices[j + 2] == i)
+			{
+				is_find_vertex_face = true;
+				cal_vertex = vertex->vertices[vertex->indices[j + 2]];
+				next_vertex = vertex->vertices[vertex->indices[j]];
+				prev_vertex = vertex->vertices[vertex->indices[j + 1]];
+			}
+
+			if(is_find_vertex_face)
+			{
+				eiVector a = normalize(next_vertex - cal_vertex);
+				eiVector b = normalize(cal_vertex - prev_vertex);
+				float w_dot = dot(a, b);
+				float w = std::acos(w_dot);
+				normal += w * cross(b, a);
+				//normal += cross(b, a);
+				weight += w;
+			}
+		}
+
+		normal = normal / weight;
+		normal = normalize(normal);
+		/*if(normal.x < 0.00001f && normal.y < 0.000001f && normal.z < 0.00001f)
+		{
+			normal = ei_vector(0.0f, 0.0f, 1.0f);
+		}*/
+		vertex->normals.push_back(normal);
+	}
+
 	//Fill with data in EH_Mesh
 	EH_Mesh eh_mesh_data;
 	eh_mesh_data.verts = (EH_Vec *)&vertex->vertices[0];
@@ -243,6 +304,7 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 	eh_mesh_data.uvs = (EH_Vec2 *)&vertex->uvs[0];
 	eh_mesh_data.num_verts = vertex->vertices.size();
 	eh_mesh_data.num_faces = vertex->indices.size()/3;
+	eh_mesh_data.normals = (EH_Vec *)&vertex->normals[0];
 
 	std::string export_mesh_name = poly_name + "_mesh";
 	EH_add_mesh(ctx, export_mesh_name.c_str(), &eh_mesh_data);
@@ -429,7 +491,7 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 						0, 1.0f, 0, 0,
 						0, 0, 1.0f, 0,
 						vertices[0].x, vertices[0].y, vertices[0].z, 1.0f
-					);
+						);
 					light.size[0] = 10000;
 					memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
 
@@ -462,6 +524,12 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 			}
 			std::vector<SUPoint3D> vertices(num_vertices);
 			SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);
+
+			//Get UV
+			std::vector<SUPoint3D> front_stq(num_vertices);
+			size_t count = 0;
+			SUMeshHelperGetFrontSTQCoords(mesh_ref, num_vertices, &front_stq[0], &count);
+
 			//std::vector<eiVector> convert_vertices(num_vertices);
 			Vertex *pContainVertex = NULL;
 			MtlVertexMap::iterator vit = g_mtl_to_vertex_map.find(mat_name);
@@ -475,31 +543,45 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 			{
 				pContainVertex = vit->second;
 			}
-			for (int i = 0; i < num_vertices; ++i)
-			{
-				pContainVertex->vertices.push_back(ei_vector(vertices[i].x, vertices[i].y, vertices[i].z));
-			}
 
 			//Get triangle indices
 			size_t num_triangles = 0;
 			SUMeshHelperGetNumTriangles(mesh_ref, &num_triangles);
-			const size_t num_indices = 3 * num_triangles;
-			size_t num_retrieved = 0;
-			std::vector<size_t> indices(num_indices);
-			SUMeshHelperGetVertexIndices(mesh_ref, num_indices, &indices[0], &num_retrieved);
-			for (int i = 0; i < num_indices; ++i)
-			{
-				pContainVertex->indices.push_back(pContainVertex->vertices.size() - num_vertices + indices[i]);
-			}
-
-			//Get UV
-			std::vector<SUPoint3D> front_stq(num_vertices);
-			size_t count = 0;
-			SUMeshHelperGetFrontSTQCoords(mesh_ref, num_vertices, &front_stq[0], &count);
+			std::vector<size_t> vert_indices;
 			for (int i = 0; i < num_vertices; ++i)
 			{
-				pContainVertex->uvs.push_back(ei_vector2(front_stq[i].x * uv_scale.u, front_stq[i].y * uv_scale.v));
-			}			
+				//Whether vertice is redundancy
+				eiVector curr_vertex = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
+				bool is_redundancy = false;
+				for(int vi = 0; vi < pContainVertex->vertices.size(); ++vi)
+				{
+					const eiVector &compare_vert = pContainVertex->vertices[vi];
+					if(std::abs(curr_vertex.x - compare_vert.x) < REMOVE_VERTEX_EPS &&
+						std::abs(curr_vertex.y - compare_vert.y) < REMOVE_VERTEX_EPS &&
+						std::abs(curr_vertex.z - compare_vert.z) < REMOVE_VERTEX_EPS)
+					{
+						is_redundancy = true;
+						vert_indices.push_back(vi);
+						break;
+					}
+				}
+
+				if(is_redundancy == false)
+				{
+					vert_indices.push_back(pContainVertex->vertices.size());
+					pContainVertex->vertices.push_back(ei_vector(vertices[i].x, vertices[i].y, vertices[i].z));
+					pContainVertex->uvs.push_back(ei_vector2(front_stq[i].x * uv_scale.u, front_stq[i].y * uv_scale.v));
+				}				
+			}
+
+			const size_t num_indices = 3 * num_triangles;
+			size_t num_retrieved = 0;
+			std::vector<size_t> local_indices(num_indices);
+			SUMeshHelperGetVertexIndices(mesh_ref, num_indices, &local_indices[0], &num_retrieved);
+			for (int i = 0; i < num_indices; ++i)
+			{
+				pContainVertex->indices.push_back(vert_indices[local_indices[i]]);
+			}
 		}
 	}
 }
