@@ -24,13 +24,15 @@
 µÆ´ø ehlight_dd
 */
 
-bool import_mesh_from_skp(const char *file_name)
+bool import_mesh_from_skp(const char *file_name, const char *output_filename)
 {
+	printf("parse %s \n", file_name);
 	EH_Context *pContext = EH_create();
 	EH_ExportOptions option;
 	option.base85_encoding = false;
 	option.left_handed = false;
-	EH_begin_export(pContext, "skp.ess", &option);
+	printf("genreate file %s...\n", output_filename);
+	EH_begin_export(pContext, output_filename, &option);
 
 	EH_RenderOptions render_op;
 	render_op.quality = EH_MEDIUM;
@@ -38,9 +40,9 @@ bool import_mesh_from_skp(const char *file_name)
 
 	EH_Sky sky;
 	sky.enabled = true;
-	sky.hdri_name = "050.hdr";
-	sky.hdri_rotation = radians(-36);
-	sky.intensity = 1.0f;
+	sky.hdri_name = "004.hdr";
+	//sky.hdri_rotation = radians(-36);
+	sky.intensity = 500.0f;
 	EH_set_sky(pContext, &sky);
 
 	/*EH_Camera cam;
@@ -62,7 +64,11 @@ bool import_mesh_from_skp(const char *file_name)
 	sun.soft_shadow = 1.0;
 	EH_set_sun(pContext, &sun);*/
 
+	eiTimer export_ess_timer;
+	ei_timer_start(&export_ess_timer);
 	skp_to_ess(file_name, pContext);
+	ei_timer_stop(&export_ess_timer);
+	printf("export ess time: %f sec.\n", export_ess_timer.duration/1000.0f);
 
 	EH_end_export(pContext);
 	EH_delete(pContext);

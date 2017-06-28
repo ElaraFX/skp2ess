@@ -45,10 +45,21 @@ struct UVScale
 	}
 };
 
+struct VertexCacheData
+{
+	eiVector vs;
+	eiVector2 uv;
+};
+typedef std::unordered_map<int, VertexCacheData> VertexCacheDataMap;
+
 typedef std::unordered_map<std::string, Vertex*> MtlVertexMap;
 MtlVertexMap g_mtl_to_vertex_map;
 typedef std::unordered_map<std::string, EH_Material> MtlMap;
 MtlMap g_mtl_map;
+typedef std::unordered_map<int, VertexCacheDataMap> VertexCacheMap;
+//VertexMap g_vertex_map;
+typedef std::unordered_map<std::string, VertexCacheMap*> MtlVertexCacheMap;
+MtlVertexCacheMap g_mtl_vertex_cache_map;
 
 std::vector<std::string> mat_list;
 
@@ -61,6 +72,7 @@ void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_s
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
 void export_light(EH_Context *ctx);
 void import_mat_list();
+void release_all_res();
 
 #ifdef _MSC_VER
 std::wstring to_utf16(std::string str);
@@ -234,22 +246,21 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	// Always terminate the API when done using it
 	SUTerminate();
 
+	release_all_res();
+
 	return true;
 }
 
 void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name)
 {
+	//vertex->normals.reserve(vertex->vertices.size());
 	//Generate normals
 	for (int i = 0; i < vertex->vertices.size(); ++i)
 	{
-		float weight = 1.0f;
+		float weight = 0.0f;
 		eiVector normal = ei_vector(0.0f, 0.0f, 0.0f);
 		for (int j = 0; j < vertex->indices.size(); j += 3)
 		{
-			/*if(vertex->indices[j] == i || vertex->indices[j + 1] == i || vertex->indices[j + 2] == i)
-			{
-
-			}*/
 			eiVector cal_vertex;
 			eiVector prev_vertex;
 			eiVector next_vertex;
@@ -290,11 +301,48 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 
 		normal = normal / weight;
 		normal = normalize(normal);
-		/*if(normal.x < 0.00001f && normal.y < 0.000001f && normal.z < 0.00001f)
-		{
-			normal = ei_vector(0.0f, 0.0f, 1.0f);
-		}*/
 		vertex->normals.push_back(normal);
+	}
+
+	EH_Material mat = g_mtl_map[mtl_name];
+	//create camera
+	if (mat.diffuse_tex.filename)
+	{		
+		std::string tex_filename = mat.diffuse_tex.filename;
+		if (tex_filename.find("camera_instance") != std::string::npos)
+		{			
+			EH_Camera cam;
+			eiVector zaxis = ei_vector(-vertex->normals[0].x, -vertex->normals[0].y, -vertex->normals[0].z);//convert to camera coordinate
+			printf("zaxis = %f, %f, %f\n", zaxis.x, zaxis.y, zaxis.z);
+			eiVector xaxis = normalize(cross(ei_vector(0.0f, 0.0f, 1.0f), zaxis));
+			if (xaxis.x < EI_SCALAR_EPS && xaxis.y < EI_SCALAR_EPS && xaxis.z < EI_SCALAR_EPS) //z axis parallel to (0, 1, 0)
+			{
+				xaxis = ei_vector(-1.0f, 0.0f, 0.0f);
+			}
+			printf("xaxis = %f, %f, %f\n", xaxis.x, xaxis.y, xaxis.z);
+			eiVector yaxis = cross(zaxis, xaxis);
+			printf("yaxis = %f, %f, %f\n", yaxis.x, yaxis.y, yaxis.z);
+			eiVector pos = vertex->vertices[0];
+			printf("pos = %f, %f, %f\n", pos.x, pos.y, pos.z);
+			eiMatrix ei_tran = ei_matrix(
+				xaxis.x, xaxis.y, xaxis.z, 0,
+				yaxis.x, yaxis.y, yaxis.z, 0,
+				zaxis.x, zaxis.y, zaxis.z, 0,
+				pos.x, pos.y, pos.z, 1
+				);			
+
+			cam.image_width = default_width;
+			cam.image_height = default_height;
+			cam.near_clip = 0.0f;
+			cam.far_clip = 10000;
+			cam.fov = radians(75);
+			memcpy(cam.view_to_world, &ei_tran.m[0], sizeof(cam.view_to_world));
+
+			EH_set_camera(ctx, &cam);
+
+			printf("create camera !!!\n");
+			return;
+		}			
 	}
 
 	//Fill with data in EH_Mesh
@@ -308,16 +356,15 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 
 	std::string export_mesh_name = poly_name + "_mesh";
 	EH_add_mesh(ctx, export_mesh_name.c_str(), &eh_mesh_data);
-
-	EH_Material mat = g_mtl_map[mtl_name];	
+		
 	bool find_map_material = false;
 	std::string import_ess_filename;
-	if(mat.diffuse_tex.filename)
+	if (mat.diffuse_tex.filename)
 	{
-		std::string tex_filename = mat.diffuse_tex.filename;		
+		std::string tex_filename = mat.diffuse_tex.filename;				
 		for(int i = 0; i < mat_list.size(); ++i)
 		{
-			if(tex_filename.find(mat_list[i]) != std::string::npos)
+			if (tex_filename.find(mat_list[i]) != std::string::npos)
 			{
 				find_map_material = true;
 				printf("tex = %s\n", tex_filename.c_str());
@@ -327,7 +374,7 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 		}
 	}
 
-	if(find_map_material)
+	if (find_map_material)
 	{
 		reinterpret_cast<EssExporter*>(ctx)->AddMaterialFromEss(mat, mtl_name.c_str(), (char*)to_utf16(import_ess_filename).c_str());
 	}
@@ -543,17 +590,32 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 			{
 				pContainVertex = vit->second;
 			}
+			VertexCacheMap *p_vertex_cache_map = NULL;
+			MtlVertexCacheMap::iterator vcit = g_mtl_vertex_cache_map.find(mat_name);
+			if (vcit == g_mtl_vertex_cache_map.end())
+			{
+				p_vertex_cache_map = new VertexCacheMap();
+				g_mtl_vertex_cache_map.insert(std::pair<std::string, VertexCacheMap*>(mat_name, p_vertex_cache_map));
+			}
+			else
+			{
+				p_vertex_cache_map = vcit->second;
+			}
 
 			//Get triangle indices
 			size_t num_triangles = 0;
 			SUMeshHelperGetNumTriangles(mesh_ref, &num_triangles);
 			std::vector<size_t> vert_indices;
+			//vert_indices.reserve(num_triangles * 3);
+			//pContainVertex->vertices.reserve(num_vertices);
+			//pContainVertex->uvs.reserve(num_vertices);
 			for (int i = 0; i < num_vertices; ++i)
 			{
 				//Whether vertice is redundancy
 				eiVector curr_vertex = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
+				eiVector2 curr_uv = ei_vector2(front_stq[i].x * uv_scale.u, front_stq[i].y * uv_scale.v);
 				bool is_redundancy = false;
-				for(int vi = 0; vi < pContainVertex->vertices.size(); ++vi)
+				/*for(int vi = 0; vi < pContainVertex->vertices.size(); ++vi)
 				{
 					const eiVector &compare_vert = pContainVertex->vertices[vi];
 					if(std::abs(curr_vertex.x - compare_vert.x) < REMOVE_VERTEX_EPS &&
@@ -564,13 +626,45 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 						vert_indices.push_back(vi);
 						break;
 					}
+				}*/
+				int key = (int)(vertices[i].x * vertices[i].y * vertices[i].z);
+				if (p_vertex_cache_map->find(key) != p_vertex_cache_map->end())
+				{
+					VertexCacheDataMap &vs_map = (*p_vertex_cache_map)[key];
+					for(VertexCacheDataMap::iterator iter = vs_map.begin();
+						iter != vs_map.end(); ++iter)
+					{
+						const eiVector &compare_vert = iter->second.vs;
+						const eiVector2 &compare_uv = iter->second.uv;
+						if(std::abs(curr_vertex.x - compare_vert.x) < REMOVE_VERTEX_EPS &&
+							std::abs(curr_vertex.y - compare_vert.y) < REMOVE_VERTEX_EPS &&
+							std::abs(curr_vertex.z - compare_vert.z) < REMOVE_VERTEX_EPS &&
+							std::abs(curr_uv.x - compare_uv.x) < REMOVE_VERTEX_EPS &&
+							std::abs(curr_uv.y - compare_uv.y) < REMOVE_VERTEX_EPS)
+						{
+							is_redundancy = true;
+							vert_indices.push_back(iter->first);
+							break;
+						}
+					}
 				}
+				else
+				{
+					(*p_vertex_cache_map)[key] = VertexCacheDataMap();
+				}
+
 
 				if(is_redundancy == false)
 				{
-					vert_indices.push_back(pContainVertex->vertices.size());
-					pContainVertex->vertices.push_back(ei_vector(vertices[i].x, vertices[i].y, vertices[i].z));
-					pContainVertex->uvs.push_back(ei_vector2(front_stq[i].x * uv_scale.u, front_stq[i].y * uv_scale.v));
+					size_t index = pContainVertex->vertices.size();
+					VertexCacheData v_cache_data;
+					v_cache_data.vs = curr_vertex;
+					v_cache_data.uv = curr_uv;
+					(*p_vertex_cache_map)[key].insert(std::make_pair(index, v_cache_data));
+
+					vert_indices.push_back(index);
+					pContainVertex->vertices.push_back(curr_vertex);
+					pContainVertex->uvs.push_back(curr_uv);
 				}				
 			}
 
@@ -611,3 +705,25 @@ std::wstring to_utf16(std::string str)
 	return ret;
 }
 #endif
+
+void release_all_res()
+{
+	for(MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin(); 
+		iter != g_mtl_to_vertex_map.end(); ++iter)
+	{
+		delete iter->second;
+		iter->second = NULL;
+	}
+	for(MtlVertexCacheMap::iterator iter = g_mtl_vertex_cache_map.begin(); 
+		iter != g_mtl_vertex_cache_map.end(); ++iter)
+	{
+		delete iter->second;
+		iter->second = NULL;
+	}
+
+	g_mtl_to_vertex_map.clear();
+	g_mtl_map.clear();
+	g_mtl_vertex_cache_map.clear();
+	mat_list.clear();
+	light_vector.clear();
+}
