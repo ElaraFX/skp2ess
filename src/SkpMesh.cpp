@@ -22,6 +22,7 @@ const std::string DEFAULT_MTL_NAME = "default_mtl";
 const int default_width = 1280;
 const int default_height = 720;
 const float REMOVE_VERTEX_EPS = 0.00000001;
+const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(75));
 
 const std::string MAT_PATH = "./materials";
 
@@ -254,54 +255,26 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name)
 {
 	//vertex->normals.reserve(vertex->vertices.size());
-	//Generate normals
-	for (int i = 0; i < vertex->vertices.size(); ++i)
+	//Generate normals	
+	eiVector zero_val =  ei_vector(0.0f, 0.0f, 0.0f);
+	vertex->normals.resize(vertex->vertices.size(), zero_val);
+	for(std::vector<uint_t>::iterator it = vertex->indices.begin(); it != vertex->indices.end(); it += 3)
 	{
-		float weight = 0.0f;
-		eiVector normal = ei_vector(0.0f, 0.0f, 0.0f);
-		for (int j = 0; j < vertex->indices.size(); j += 3)
+		eiVector v[3] = {vertex->vertices[*it], vertex->vertices[*(it+1)], vertex->vertices[*(it+2)]};
+		eiVector normal = cross(v[1] - v[0], v[2] - v[0]);
+
+		for(int j = 0; j < 3; ++j)
 		{
-			eiVector cal_vertex;
-			eiVector prev_vertex;
-			eiVector next_vertex;
-			bool is_find_vertex_face = false;
-			if(vertex->indices[j] == i)
-			{
-				is_find_vertex_face = true;
-				cal_vertex = vertex->vertices[vertex->indices[j]];
-				next_vertex = vertex->vertices[vertex->indices[j + 1]];
-				prev_vertex = vertex->vertices[vertex->indices[j + 2]];
-			}
-			else if(vertex->indices[j + 1] == i)
-			{
-				is_find_vertex_face = true;
-				cal_vertex = vertex->vertices[vertex->indices[j + 1]];
-				next_vertex = vertex->vertices[vertex->indices[j + 2]];
-				prev_vertex = vertex->vertices[vertex->indices[j]];
-			}
-			else if(vertex->indices[j + 2] == i)
-			{
-				is_find_vertex_face = true;
-				cal_vertex = vertex->vertices[vertex->indices[j + 2]];
-				next_vertex = vertex->vertices[vertex->indices[j]];
-				prev_vertex = vertex->vertices[vertex->indices[j + 1]];
-			}
-
-			if(is_find_vertex_face)
-			{
-				eiVector a = normalize(next_vertex - cal_vertex);
-				eiVector b = normalize(cal_vertex - prev_vertex);
-				float w_dot = dot(a, b);
-				float w = std::acos(w_dot);
-				normal += w * cross(b, a);
-				//normal += cross(b, a);
-				weight += w;
-			}
+			eiVector a = normalize(v[(j+1)%3] - v[j]);
+			eiVector b = normalize(v[j] - v[(j+2)%3]);
+			float w_dot = clamp<float>(dot(a, b), -1.0, 1.0);
+			float weight = std::acos(w_dot);
+			vertex->normals[*(it+j)] += weight * normal;
 		}
-
-		normal = normal / weight;
-		normal = normalize(normal);
-		vertex->normals.push_back(normal);
+	}
+	for(int i = 0; i < vertex->normals.size(); ++i)
+	{
+		vertex->normals[i] = normalize(vertex->normals[i]);
 	}
 
 	EH_Material mat = g_mtl_map[mtl_name];
@@ -526,7 +499,7 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 				if(material_name.find("ehlight") != std::string::npos)
 				{
 					EH_Light light;
-					light.intensity = 100000.0f;
+					light.intensity = 30000.0f;
 					light.type = EH_LIGHT_IES;
 					light.ies_filename = "./19.ies";
 					//memcpy(light.light_to_world, 
@@ -615,18 +588,7 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 				eiVector curr_vertex = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
 				eiVector2 curr_uv = ei_vector2(front_stq[i].x * uv_scale.u, front_stq[i].y * uv_scale.v);
 				bool is_redundancy = false;
-				/*for(int vi = 0; vi < pContainVertex->vertices.size(); ++vi)
-				{
-					const eiVector &compare_vert = pContainVertex->vertices[vi];
-					if(std::abs(curr_vertex.x - compare_vert.x) < REMOVE_VERTEX_EPS &&
-						std::abs(curr_vertex.y - compare_vert.y) < REMOVE_VERTEX_EPS &&
-						std::abs(curr_vertex.z - compare_vert.z) < REMOVE_VERTEX_EPS)
-					{
-						is_redundancy = true;
-						vert_indices.push_back(vi);
-						break;
-					}
-				}*/
+
 				int key = (int)(vertices[i].x * vertices[i].y * vertices[i].z);
 				if (p_vertex_cache_map->find(key) != p_vertex_cache_map->end())
 				{
@@ -642,9 +604,42 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 							std::abs(curr_uv.x - compare_uv.x) < REMOVE_VERTEX_EPS &&
 							std::abs(curr_uv.y - compare_uv.y) < REMOVE_VERTEX_EPS)
 						{
-							is_redundancy = true;
-							vert_indices.push_back(iter->first);
-							break;
+							size_t index = iter->first;
+
+							size_t offset = i % 3;
+							size_t vertex_start_index = i - offset;
+							eiVector p0 = ei_vector(vertices[vertex_start_index].x, vertices[vertex_start_index].y, vertices[vertex_start_index].z);
+							eiVector p1 = ei_vector(vertices[vertex_start_index+1].x, vertices[vertex_start_index+1].y, vertices[vertex_start_index+1].z);
+							eiVector p2 = ei_vector(vertices[vertex_start_index+2].x, vertices[vertex_start_index+2].y, vertices[vertex_start_index+2].z);
+							eiVector a = normalize(p2 - p1);
+							eiVector b = normalize(p1 - p0);
+							eiVector curr_normal = normalize(cross(b, a));
+
+
+							offset = index % 3;
+							size_t combine_vertice_start_index = index - offset;
+							p0 = ei_vector(
+								pContainVertex->vertices[combine_vertice_start_index].x, 
+								pContainVertex->vertices[combine_vertice_start_index].y, 
+								pContainVertex->vertices[combine_vertice_start_index].z);
+							p1 = ei_vector(
+								pContainVertex->vertices[combine_vertice_start_index+1].x, 
+								pContainVertex->vertices[combine_vertice_start_index+1].y, 
+								pContainVertex->vertices[combine_vertice_start_index+1].z);
+							p2 = ei_vector(
+								pContainVertex->vertices[combine_vertice_start_index+2].x, 
+								pContainVertex->vertices[combine_vertice_start_index+2].y, 
+								pContainVertex->vertices[combine_vertice_start_index+2].z);
+							a = normalize(p2 - p1);
+							b = normalize(p1 - p0);
+							eiVector combine_vertice_normal = normalize(cross(b, a));
+
+							if (dot(curr_normal, combine_vertice_normal) > COMBINE_NORMAL_THRESHOLD)
+							{
+								is_redundancy = true;
+								vert_indices.push_back(iter->first);
+								break;
+							}							
 						}
 					}
 				}

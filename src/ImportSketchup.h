@@ -35,14 +35,14 @@ bool import_mesh_from_skp(const char *file_name, const char *output_filename)
 	EH_begin_export(pContext, output_filename, &option);
 
 	EH_RenderOptions render_op;
-	render_op.quality = EH_MEDIUM;
+	render_op.quality = EH_FAST;
 	EH_set_render_options(pContext, &render_op);
 
 	EH_Sky sky;
 	sky.enabled = true;
 	sky.hdri_name = "004.hdr";
 	//sky.hdri_rotation = radians(-36);
-	sky.intensity = 500.0f;
+	sky.intensity = 50.0f;
 	EH_set_sky(pContext, &sky);
 
 	/*EH_Camera cam;
