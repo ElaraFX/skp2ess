@@ -22,7 +22,7 @@ const std::string DEFAULT_MTL_NAME = "default_mtl";
 const int default_width = 1280;
 const int default_height = 720;
 const float REMOVE_VERTEX_EPS = 0.00000001;
-const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(75));
+const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(85));
 
 const std::string MAT_PATH = "./materials";
 
@@ -74,6 +74,8 @@ void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
 void export_light(EH_Context *ctx);
 void import_mat_list();
 void release_all_res();
+EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal);
+EH_Sun create_sun_dir_light(const eiVector &dir);
 
 #ifdef _MSC_VER
 std::wstring to_utf16(std::string str);
@@ -148,54 +150,54 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	}
 
 	//Get shadow info
-	SUShadowInfoRef shadow_info;
-	SUResult get_sun_dir_ret;
-	SUTypedValueRef dir_val;
-	dir_val.ptr = NULL;
-	SUResult create_val_ret = SUTypedValueCreate(&dir_val);
-	static char *shadow_key = "SunDirection";
-	if(SUModelGetShadowInfo(model, &shadow_info) == SU_ERROR_NONE)
-	{
-		size_t shadow_key_count = 0;
-		SUShadowInfoGetNumKeys(shadow_info, &shadow_key_count);
-		if(shadow_key_count > 0)
-		{
-			get_sun_dir_ret = SUShadowInfoGetValue(shadow_info, "SunDirection", &dir_val);
-		}
+	//SUShadowInfoRef shadow_info;
+	//SUResult get_sun_dir_ret;
+	//SUTypedValueRef dir_val;
+	//dir_val.ptr = NULL;
+	//SUResult create_val_ret = SUTypedValueCreate(&dir_val);
+	//static char *shadow_key = "SunDirection";
+	//if(SUModelGetShadowInfo(model, &shadow_info) == SU_ERROR_NONE)
+	//{
+	//	size_t shadow_key_count = 0;
+	//	SUShadowInfoGetNumKeys(shadow_info, &shadow_key_count);
+	//	if(shadow_key_count > 0)
+	//	{
+	//		get_sun_dir_ret = SUShadowInfoGetValue(shadow_info, "SunDirection", &dir_val);
+	//	}
 
-	}
+	//}
 
-	if(get_sun_dir_ret == SU_ERROR_NONE)
-	{		
-		double vector3d_val[3];
-		SUTypedValueGetVector3d(dir_val, vector3d_val);
-		printf("x = %f, y = %f, z = %f\n", vector3d_val[0], vector3d_val[1], vector3d_val[2]);
+	//if(get_sun_dir_ret == SU_ERROR_NONE)
+	//{		
+	//	double vector3d_val[3];
+	//	SUTypedValueGetVector3d(dir_val, vector3d_val);
+	//	printf("x = %f, y = %f, z = %f\n", vector3d_val[0], vector3d_val[1], vector3d_val[2]);
 
-		EH_Sun sun;
-		sun.dir[0] = std::acos(vector3d_val[2]);
-		float phi = std::atan(vector3d_val[1]/vector3d_val[0]);
-		if(vector3d_val[0] > 0.0f)
-		{
-			phi = phi;
-		}
-		else
-		{
-			phi = phi + EI_PI;
-		}
+	//	EH_Sun sun;
+	//	sun.dir[0] = std::acos(vector3d_val[2]);
+	//	float phi = std::atan(vector3d_val[1]/vector3d_val[0]);
+	//	if(vector3d_val[0] > 0.0f)
+	//	{
+	//		phi = phi;
+	//	}
+	//	else
+	//	{
+	//		phi = phi + EI_PI;
+	//	}
 
-		sun.dir[1] = phi; 
-		//printf("theta = %f, phi = %f\n", sun.dir[0] * (180.0/EI_PI), sun.dir[1] * (180.0/EI_PI));
-		float color[3] = {0.94902, 0.776471, 0.619608};
-		memcpy(sun.color, color, sizeof(color));
-		sun.intensity = 30.4;
-		sun.soft_shadow = 1.0f;
-		EH_set_sun(ctx, &sun);
-	}
-	else
-	{
-		printf("Get sun direction error ! error code = %d\n", get_sun_dir_ret);
-	}
-	SUTypedValueRelease(&dir_val);
+	//	sun.dir[1] = phi; 
+	//	//printf("theta = %f, phi = %f\n", sun.dir[0] * (180.0/EI_PI), sun.dir[1] * (180.0/EI_PI));
+	//	float color[3] = {0.94902, 0.776471, 0.619608};
+	//	memcpy(sun.color, color, sizeof(color));
+	//	sun.intensity = 30.4;
+	//	sun.soft_shadow = 1.0f;
+	//	EH_set_sun(ctx, &sun);
+	//}
+	//else
+	//{
+	//	printf("Get sun direction error ! error code = %d\n", get_sun_dir_ret);
+	//}
+	//SUTypedValueRelease(&dir_val);
 
 	// Get all materials
 	GetAllMaterials(model);
@@ -284,38 +286,22 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 		std::string tex_filename = mat.diffuse_tex.filename;
 		if (tex_filename.find("camera_instance") != std::string::npos)
 		{			
-			EH_Camera cam;
-			eiVector zaxis = ei_vector(-vertex->normals[0].x, -vertex->normals[0].y, -vertex->normals[0].z);//convert to camera coordinate
-			printf("zaxis = %f, %f, %f\n", zaxis.x, zaxis.y, zaxis.z);
-			eiVector xaxis = normalize(cross(ei_vector(0.0f, 0.0f, 1.0f), zaxis));
-			if (xaxis.x < EI_SCALAR_EPS && xaxis.y < EI_SCALAR_EPS && xaxis.z < EI_SCALAR_EPS) //z axis parallel to (0, 1, 0)
-			{
-				xaxis = ei_vector(-1.0f, 0.0f, 0.0f);
-			}
-			printf("xaxis = %f, %f, %f\n", xaxis.x, xaxis.y, xaxis.z);
-			eiVector yaxis = cross(zaxis, xaxis);
-			printf("yaxis = %f, %f, %f\n", yaxis.x, yaxis.y, yaxis.z);
+			eiVector normal = ei_vector(-vertex->normals[0].x, -vertex->normals[0].y, -vertex->normals[0].z);
 			eiVector pos = vertex->vertices[0];
-			printf("pos = %f, %f, %f\n", pos.x, pos.y, pos.z);
-			eiMatrix ei_tran = ei_matrix(
-				xaxis.x, xaxis.y, xaxis.z, 0,
-				yaxis.x, yaxis.y, yaxis.z, 0,
-				zaxis.x, zaxis.y, zaxis.z, 0,
-				pos.x, pos.y, pos.z, 1
-				);			
-
-			cam.image_width = default_width;
-			cam.image_height = default_height;
-			cam.near_clip = 0.0f;
-			cam.far_clip = 10000;
-			cam.fov = radians(75);
-			memcpy(cam.view_to_world, &ei_tran.m[0], sizeof(cam.view_to_world));
-
+			EH_Camera cam = create_camera_from_pos_normal(pos, normal);
 			EH_set_camera(ctx, &cam);
 
 			printf("create camera !!!\n");
 			return;
-		}			
+		}
+		else if (tex_filename.find("sun_direction") != std::string::npos)
+		{
+			eiVector sun_dir = ei_vector(-vertex->normals[0].x, -vertex->normals[0].y, -vertex->normals[0].z);
+			EH_Sun eh_sun = create_sun_dir_light(sun_dir);
+			EH_set_sun(ctx, &eh_sun);
+
+			printf("create sun dir light !\n");
+		}
 	}
 
 	//Fill with data in EH_Mesh
@@ -382,33 +368,6 @@ void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_s
 	{
 		eh_mtl.transp_weight = 1.0 - mtl_info.alpha_;
 	}
-
-	//std::string tex_file_name = mtl_info.texture_path_.c_str();
-	//if(tex_file_name.find("cloth_std_01") != std::string::npos)
-	//{
-	//	eh_mtl.diffuse_weight = 1.0f;
-	//}
-	//else if(tex_file_name.find("glass_std_01") != std::string::npos)
-	//{
-	//}
-	//else if(tex_file_name.find("marble_std_01") != std::string::npos)
-	//{
-	//	eh_mtl.diffuse_weight = 0.7f;
-	//	eh_mtl.glossiness = 90.0f;
-	//	eh_mtl.specular_weight = 0.2f;
-	//}
-	//else if(tex_file_name.find("light_std_01") != std::string::npos)
-	//{
-	//}
-	//else if(tex_file_name.find("wood_std") != std::string::npos)
-	//{
-	//	eh_mtl.diffuse_weight = 0.7;
-	//	eh_mtl.specular_weight = 0.2;
-	//	eh_mtl.glossiness = 90.0;
-	//}
-	//else if(tex_file_name.find("cloth_std_01") != std::string::npos)
-	//{
-	//}
 }
 
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
@@ -499,10 +458,9 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 				if(material_name.find("ehlight") != std::string::npos)
 				{
 					EH_Light light;
-					light.intensity = 30000.0f;
+					light.intensity = 25000.0f;
 					light.type = EH_LIGHT_IES;
 					light.ies_filename = "./19.ies";
-					//memcpy(light.light_to_world, 
 					std::vector<SUPoint3D> vertices(1);
 					size_t actually_count;
 					SUMeshHelperGetVertices(mesh_ref, 1, &vertices[0], &actually_count);
@@ -603,9 +561,7 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 							std::abs(curr_vertex.z - compare_vert.z) < REMOVE_VERTEX_EPS &&
 							std::abs(curr_uv.x - compare_uv.x) < REMOVE_VERTEX_EPS &&
 							std::abs(curr_uv.y - compare_uv.y) < REMOVE_VERTEX_EPS)
-						{
-							size_t index = iter->first;
-
+						{							
 							size_t offset = i % 3;
 							size_t vertex_start_index = i - offset;
 							eiVector p0 = ei_vector(vertices[vertex_start_index].x, vertices[vertex_start_index].y, vertices[vertex_start_index].z);
@@ -615,7 +571,7 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 							eiVector b = normalize(p1 - p0);
 							eiVector curr_normal = normalize(cross(b, a));
 
-
+							size_t index = iter->first;
 							offset = index % 3;
 							size_t combine_vertice_start_index = index - offset;
 							p0 = ei_vector(
@@ -721,4 +677,59 @@ void release_all_res()
 	g_mtl_vertex_cache_map.clear();
 	mat_list.clear();
 	light_vector.clear();
+}
+
+EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal)
+{
+	EH_Camera cam;
+	eiVector zaxis = normal;
+	//printf("zaxis = %f, %f, %f\n", zaxis.x, zaxis.y, zaxis.z);
+	eiVector xaxis = normalize(cross(ei_vector(0.0f, 0.0f, 1.0f), zaxis));
+	if (xaxis.x < EI_SCALAR_EPS && xaxis.y < EI_SCALAR_EPS && xaxis.z < EI_SCALAR_EPS) //z axis parallel to (0, 1, 0)
+	{
+		xaxis = ei_vector(-1.0f, 0.0f, 0.0f);
+	}
+	//printf("xaxis = %f, %f, %f\n", xaxis.x, xaxis.y, xaxis.z);
+	eiVector yaxis = cross(zaxis, xaxis);
+	//printf("yaxis = %f, %f, %f\n", yaxis.x, yaxis.y, yaxis.z);
+	//printf("pos = %f, %f, %f\n", pos.x, pos.y, pos.z);
+	eiMatrix ei_tran = ei_matrix(
+		xaxis.x, xaxis.y, xaxis.z, 0,
+		yaxis.x, yaxis.y, yaxis.z, 0,
+		zaxis.x, zaxis.y, zaxis.z, 0,
+		pos.x, pos.y, pos.z, 1
+		);			
+
+	cam.image_width = default_width;
+	cam.image_height = default_height;
+	cam.near_clip = 0.0f;
+	cam.far_clip = 10000;
+	cam.fov = radians(75);
+	memcpy(cam.view_to_world, &ei_tran.m[0], sizeof(cam.view_to_world));
+
+	return cam;
+}
+
+EH_Sun create_sun_dir_light(const eiVector &dir)
+{
+	EH_Sun sun;
+	sun.dir[0] = std::acos(dir.z);
+	float phi = std::atan(dir.y/dir.x);
+	if(dir.x > 0.0f)
+	{
+		phi = phi;
+	}
+	else
+	{
+		phi = phi + EI_PI;
+	}
+
+	sun.dir[1] = phi; 
+	//printf("theta = %f, phi = %f\n", sun.dir[0] * (180.0/EI_PI), sun.dir[1] * (180.0/EI_PI));
+	float color[3] = {0.94902, 0.776471, 0.619608};
+	memcpy(sun.color, color, sizeof(color));
+	sun.intensity = 30.4;
+	sun.soft_shadow = 1.0f;
+
+	return sun;
 }
