@@ -22,7 +22,7 @@ const std::string DEFAULT_MTL_NAME = "default_mtl";
 const int default_width = 1280;
 const int default_height = 720;
 const float REMOVE_VERTEX_EPS = 0.00000001;
-const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(85));
+const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(60));
 
 const std::string MAT_PATH = "./materials";
 
@@ -32,6 +32,18 @@ struct Vertex
 	std::vector<eiVector2> uvs;
 	std::vector<uint_t> indices;
 	std::vector<eiVector> normals;
+};
+
+struct TriangleIndex
+{
+	size_t i, j, k;
+
+	TriangleIndex(size_t i, size_t j, size_t k) :
+		i(i),
+		j(j),
+		k(k)
+	{
+	}
 };
 
 struct UVScale
@@ -148,56 +160,6 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	{
 		printf("This scene has no active camera!\n");
 	}
-
-	//Get shadow info
-	//SUShadowInfoRef shadow_info;
-	//SUResult get_sun_dir_ret;
-	//SUTypedValueRef dir_val;
-	//dir_val.ptr = NULL;
-	//SUResult create_val_ret = SUTypedValueCreate(&dir_val);
-	//static char *shadow_key = "SunDirection";
-	//if(SUModelGetShadowInfo(model, &shadow_info) == SU_ERROR_NONE)
-	//{
-	//	size_t shadow_key_count = 0;
-	//	SUShadowInfoGetNumKeys(shadow_info, &shadow_key_count);
-	//	if(shadow_key_count > 0)
-	//	{
-	//		get_sun_dir_ret = SUShadowInfoGetValue(shadow_info, "SunDirection", &dir_val);
-	//	}
-
-	//}
-
-	//if(get_sun_dir_ret == SU_ERROR_NONE)
-	//{		
-	//	double vector3d_val[3];
-	//	SUTypedValueGetVector3d(dir_val, vector3d_val);
-	//	printf("x = %f, y = %f, z = %f\n", vector3d_val[0], vector3d_val[1], vector3d_val[2]);
-
-	//	EH_Sun sun;
-	//	sun.dir[0] = std::acos(vector3d_val[2]);
-	//	float phi = std::atan(vector3d_val[1]/vector3d_val[0]);
-	//	if(vector3d_val[0] > 0.0f)
-	//	{
-	//		phi = phi;
-	//	}
-	//	else
-	//	{
-	//		phi = phi + EI_PI;
-	//	}
-
-	//	sun.dir[1] = phi; 
-	//	//printf("theta = %f, phi = %f\n", sun.dir[0] * (180.0/EI_PI), sun.dir[1] * (180.0/EI_PI));
-	//	float color[3] = {0.94902, 0.776471, 0.619608};
-	//	memcpy(sun.color, color, sizeof(color));
-	//	sun.intensity = 30.4;
-	//	sun.soft_shadow = 1.0f;
-	//	EH_set_sun(ctx, &sun);
-	//}
-	//else
-	//{
-	//	printf("Get sun direction error ! error code = %d\n", get_sun_dir_ret);
-	//}
-	//SUTypedValueRelease(&dir_val);
 
 	// Get all materials
 	GetAllMaterials(model);
@@ -536,93 +498,129 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 			//Get triangle indices
 			size_t num_triangles = 0;
 			SUMeshHelperGetNumTriangles(mesh_ref, &num_triangles);
-			std::vector<size_t> vert_indices;
-			//vert_indices.reserve(num_triangles * 3);
-			//pContainVertex->vertices.reserve(num_vertices);
-			//pContainVertex->uvs.reserve(num_vertices);
-			for (int i = 0; i < num_vertices; ++i)
-			{
-				//Whether vertice is redundancy
-				eiVector curr_vertex = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
-				eiVector2 curr_uv = ei_vector2(front_stq[i].x * uv_scale.u, front_stq[i].y * uv_scale.v);
-				bool is_redundancy = false;
-
-				int key = (int)(vertices[i].x * vertices[i].y * vertices[i].z);
-				if (p_vertex_cache_map->find(key) != p_vertex_cache_map->end())
-				{
-					VertexCacheDataMap &vs_map = (*p_vertex_cache_map)[key];
-					for(VertexCacheDataMap::iterator iter = vs_map.begin();
-						iter != vs_map.end(); ++iter)
-					{
-						const eiVector &compare_vert = iter->second.vs;
-						const eiVector2 &compare_uv = iter->second.uv;
-						if(std::abs(curr_vertex.x - compare_vert.x) < REMOVE_VERTEX_EPS &&
-							std::abs(curr_vertex.y - compare_vert.y) < REMOVE_VERTEX_EPS &&
-							std::abs(curr_vertex.z - compare_vert.z) < REMOVE_VERTEX_EPS &&
-							std::abs(curr_uv.x - compare_uv.x) < REMOVE_VERTEX_EPS &&
-							std::abs(curr_uv.y - compare_uv.y) < REMOVE_VERTEX_EPS)
-						{							
-							size_t offset = i % 3;
-							size_t vertex_start_index = i - offset;
-							eiVector p0 = ei_vector(vertices[vertex_start_index].x, vertices[vertex_start_index].y, vertices[vertex_start_index].z);
-							eiVector p1 = ei_vector(vertices[vertex_start_index+1].x, vertices[vertex_start_index+1].y, vertices[vertex_start_index+1].z);
-							eiVector p2 = ei_vector(vertices[vertex_start_index+2].x, vertices[vertex_start_index+2].y, vertices[vertex_start_index+2].z);
-							eiVector a = normalize(p2 - p1);
-							eiVector b = normalize(p1 - p0);
-							eiVector curr_normal = normalize(cross(b, a));
-
-							size_t index = iter->first;
-							offset = index % 3;
-							size_t combine_vertice_start_index = index - offset;
-							p0 = ei_vector(
-								pContainVertex->vertices[combine_vertice_start_index].x, 
-								pContainVertex->vertices[combine_vertice_start_index].y, 
-								pContainVertex->vertices[combine_vertice_start_index].z);
-							p1 = ei_vector(
-								pContainVertex->vertices[combine_vertice_start_index+1].x, 
-								pContainVertex->vertices[combine_vertice_start_index+1].y, 
-								pContainVertex->vertices[combine_vertice_start_index+1].z);
-							p2 = ei_vector(
-								pContainVertex->vertices[combine_vertice_start_index+2].x, 
-								pContainVertex->vertices[combine_vertice_start_index+2].y, 
-								pContainVertex->vertices[combine_vertice_start_index+2].z);
-							a = normalize(p2 - p1);
-							b = normalize(p1 - p0);
-							eiVector combine_vertice_normal = normalize(cross(b, a));
-
-							if (dot(curr_normal, combine_vertice_normal) > COMBINE_NORMAL_THRESHOLD)
-							{
-								is_redundancy = true;
-								vert_indices.push_back(iter->first);
-								break;
-							}							
-						}
-					}
-				}
-				else
-				{
-					(*p_vertex_cache_map)[key] = VertexCacheDataMap();
-				}
-
-
-				if(is_redundancy == false)
-				{
-					size_t index = pContainVertex->vertices.size();
-					VertexCacheData v_cache_data;
-					v_cache_data.vs = curr_vertex;
-					v_cache_data.uv = curr_uv;
-					(*p_vertex_cache_map)[key].insert(std::make_pair(index, v_cache_data));
-
-					vert_indices.push_back(index);
-					pContainVertex->vertices.push_back(curr_vertex);
-					pContainVertex->uvs.push_back(curr_uv);
-				}				
-			}
-
 			const size_t num_indices = 3 * num_triangles;
 			size_t num_retrieved = 0;
 			std::vector<size_t> local_indices(num_indices);
 			SUMeshHelperGetVertexIndices(mesh_ref, num_indices, &local_indices[0], &num_retrieved);
+
+			std::vector<size_t> vert_indices;
+			//vert_indices.reserve(num_triangles * 3);
+			//pContainVertex->vertices.reserve(num_vertices);
+			//pContainVertex->uvs.reserve(num_vertices);
+			for (int i = 0; i < num_vertices; i += 3)
+			{
+				//Whether vertice is redundancy
+				eiVector p0 = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
+				eiVector p1 = ei_vector(vertices[i+1].x, vertices[i+1].y, vertices[i+1].z);
+				eiVector p2 = ei_vector(vertices[i+2].x, vertices[i+2].y, vertices[i+2].z);
+				eiVector a = normalize(p2 - p1);
+				eiVector b = normalize(p1 - p0);
+				eiVector curr_normal = normalize(cross(b, a));
+
+				//eiVector face_vertices[3] = {p0, p1, p2};
+
+				for (int j = 0; j < 3; ++j)
+				{
+					eiVector curr_vertex = ei_vector(vertices[i+j].x, vertices[i+j].y, vertices[i+j].z);
+					eiVector2 curr_uv = ei_vector2(front_stq[i+j].x * uv_scale.u, front_stq[i+j].y * uv_scale.v);
+					bool is_redundancy = false;
+
+					int key = (int)(vertices[i+j].x * vertices[i+j].y * vertices[i+j].z);
+					if (p_vertex_cache_map->find(key) != p_vertex_cache_map->end())
+					{
+						VertexCacheDataMap &vs_map = (*p_vertex_cache_map)[key];
+						for(VertexCacheDataMap::iterator iter = vs_map.begin();
+							iter != vs_map.end(); ++iter)
+						{
+							const eiVector &compare_vert = iter->second.vs;
+							const eiVector2 &compare_uv = iter->second.uv;
+							//size_t combine_vertice_start_index = 0;
+							//size_t combine_vertice_start_index1 = 0;
+							//size_t combine_vertice_start_index2 = 0;
+							std::vector<TriangleIndex> triangle_num;
+							if(std::abs(curr_vertex.x - compare_vert.x) < REMOVE_VERTEX_EPS &&
+								std::abs(curr_vertex.y - compare_vert.y) < REMOVE_VERTEX_EPS &&
+								std::abs(curr_vertex.z - compare_vert.z) < REMOVE_VERTEX_EPS &&
+								std::abs(curr_uv.x - compare_uv.x) < REMOVE_VERTEX_EPS &&
+								std::abs(curr_uv.y - compare_uv.y) < REMOVE_VERTEX_EPS)
+							{
+								size_t index = iter->first;
+								
+								if(pContainVertex->indices.size() >= 3)
+								{
+									for(int vi = pContainVertex->indices.size() - 1; vi >= 0; --vi)
+									{
+										if(pContainVertex->indices[vi] == index)
+										{
+											float offset = vi % 3;
+											size_t st_id = vi - offset;
+											triangle_num.push_back(TriangleIndex(
+												pContainVertex->indices[st_id], 
+												pContainVertex->indices[st_id + 1], 
+												pContainVertex->indices[st_id + 2]));
+											
+										}
+									}
+								}
+								
+								/*if(triangle_num.size()>0)
+								{
+									printf("triangle_num = %d\n", triangle_num.size());
+								}*/
+								for(int ti = 0; ti < triangle_num.size(); ++ti)
+								{									
+									p0 = ei_vector(
+										pContainVertex->vertices[triangle_num[ti].i].x, 
+										pContainVertex->vertices[triangle_num[ti].i].y, 
+										pContainVertex->vertices[triangle_num[ti].i].z);
+									p1 = ei_vector(
+										pContainVertex->vertices[triangle_num[ti].j].x, 
+										pContainVertex->vertices[triangle_num[ti].j].y, 
+										pContainVertex->vertices[triangle_num[ti].j].z);
+									p2 = ei_vector(
+										pContainVertex->vertices[triangle_num[ti].k].x, 
+										pContainVertex->vertices[triangle_num[ti].k].y, 
+										pContainVertex->vertices[triangle_num[ti].k].z);
+									a = normalize(p2 - p1);
+									b = normalize(p1 - p0);
+									eiVector combine_vertice_normal = normalize(cross(b, a));
+
+									if (dot(curr_normal, combine_vertice_normal) > COMBINE_NORMAL_THRESHOLD)
+									{
+										is_redundancy = true;
+										vert_indices.push_back(iter->first);
+										break;
+									}
+								}								
+							}
+						}
+					}
+					else
+					{
+						(*p_vertex_cache_map)[key] = VertexCacheDataMap();
+					}
+
+
+					if(is_redundancy == false)
+					{
+						size_t index = pContainVertex->vertices.size();
+						VertexCacheData v_cache_data;
+						v_cache_data.vs = curr_vertex;
+						v_cache_data.uv = curr_uv;
+						(*p_vertex_cache_map)[key].insert(std::make_pair(index, v_cache_data));
+
+						vert_indices.push_back(index);
+						pContainVertex->vertices.push_back(curr_vertex);
+						pContainVertex->uvs.push_back(curr_uv);
+					}
+				}
+								
+			}
+
+			/*const size_t num_indices = 3 * num_triangles;
+			size_t num_retrieved = 0;
+			std::vector<size_t> local_indices(num_indices);
+			SUMeshHelperGetVertexIndices(mesh_ref, num_indices, &local_indices[0], &num_retrieved);*/
 			for (int i = 0; i < num_indices; ++i)
 			{
 				pContainVertex->indices.push_back(vert_indices[local_indices[i]]);
