@@ -1,6 +1,10 @@
 #include "SkpMesh.h"
 #include "Material.h"
 #include "esslib.h"
+
+#include <stdio.h>
+#include <string.h>
+
 #include <ei_matrix.h>
 #include <ei_vector.h>
 #include <ei_vector2.h>
@@ -14,15 +18,17 @@
 #include <SketchUpAPI/model/typed_value.h>
 
 #include <unordered_map>
+#include <boost/unordered_map.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/detail/utf8_codecvt_facet.hpp>
+#include <boost/math/special_functions/fpclassify.hpp>
 #include <limits>
 
 const std::string DEFAULT_MTL_NAME = "default_mtl";
 const int default_width = 1280;
 const int default_height = 720;
 const float REMOVE_VERTEX_EPS = 0.00000001;
-const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(60));
+const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(70));
 
 const std::string MAT_PATH = "./materials";
 
@@ -58,18 +64,48 @@ struct UVScale
 	}
 };
 
+
+
 struct VertexCacheData
 {
 	eiVector vs;
 	eiVector2 uv;
+
+	bool operator ==(const VertexCacheData &rht) const
+	{
+		if(std::abs(vs.x - rht.vs.x) < REMOVE_VERTEX_EPS &&
+			std::abs(vs.y - rht.vs.y) < REMOVE_VERTEX_EPS &&
+			std::abs(vs.z - rht.vs.z) < REMOVE_VERTEX_EPS &&
+			std::abs(uv.x - rht.uv.x) < REMOVE_VERTEX_EPS &&
+			std::abs(uv.y - rht.uv.y) < REMOVE_VERTEX_EPS)
+		{
+			return true;
+		}
+
+		return false;
+	}
 };
-typedef std::unordered_map<int, VertexCacheData> VertexCacheDataMap;
+struct KeyDataHasher
+{
+	std::size_t operator () (const VertexCacheData &key) const 
+	{
+		// A commonly used way is to use boost
+		std::size_t seed = 0;
+		boost::hash_combine(seed, boost::hash_value(key.vs.x));
+		boost::hash_combine(seed, boost::hash_value(key.vs.y));
+		boost::hash_combine(seed, boost::hash_value(key.vs.z));
+		boost::hash_combine(seed, boost::hash_value(key.uv.x));
+		boost::hash_combine(seed, boost::hash_value(key.uv.y));
+		return seed;
+	}
+};
+typedef boost::unordered_map<int, VertexCacheData> VertexCacheDataMap;
 
 typedef std::unordered_map<std::string, Vertex*> MtlVertexMap;
 MtlVertexMap g_mtl_to_vertex_map;
 typedef std::unordered_map<std::string, EH_Material> MtlMap;
 MtlMap g_mtl_map;
-typedef std::unordered_map<int, VertexCacheDataMap> VertexCacheMap;
+typedef boost::unordered_map<VertexCacheData, VertexCacheDataMap, KeyDataHasher> VertexCacheMap;
 //VertexMap g_vertex_map;
 typedef std::unordered_map<std::string, VertexCacheMap*> MtlVertexCacheMap;
 MtlVertexCacheMap g_mtl_vertex_cache_map;
@@ -88,6 +124,7 @@ void import_mat_list();
 void release_all_res();
 EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal);
 EH_Sun create_sun_dir_light(const eiVector &dir);
+void fix_inf_vertex(eiVector &v);
 
 #ifdef _MSC_VER
 std::wstring to_utf16(std::string str);
@@ -511,8 +548,11 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 			{
 				//Whether vertice is redundancy
 				eiVector p0 = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
+				fix_inf_vertex(p0);
 				eiVector p1 = ei_vector(vertices[i+1].x, vertices[i+1].y, vertices[i+1].z);
+				fix_inf_vertex(p1);
 				eiVector p2 = ei_vector(vertices[i+2].x, vertices[i+2].y, vertices[i+2].z);
+				fix_inf_vertex(p2);
 				eiVector a = normalize(p2 - p1);
 				eiVector b = normalize(p1 - p0);
 				eiVector curr_normal = normalize(cross(b, a));
@@ -522,82 +562,81 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 				for (int j = 0; j < 3; ++j)
 				{
 					eiVector curr_vertex = ei_vector(vertices[i+j].x, vertices[i+j].y, vertices[i+j].z);
+					fix_inf_vertex(curr_vertex);
 					eiVector2 curr_uv = ei_vector2(front_stq[i+j].x * uv_scale.u, front_stq[i+j].y * uv_scale.v);
 					bool is_redundancy = false;
 
-					int key = (int)(vertices[i+j].x * vertices[i+j].y * vertices[i+j].z);
-					if (p_vertex_cache_map->find(key) != p_vertex_cache_map->end())
+					//int key = (int)(vertices[i+j].x * vertices[i+j].y * vertices[i+j].z);
+					VertexCacheData v_data;
+					v_data.vs = curr_vertex;
+					v_data.uv = curr_uv;
+					if (p_vertex_cache_map->find(v_data) != p_vertex_cache_map->end())
 					{
-						VertexCacheDataMap &vs_map = (*p_vertex_cache_map)[key];
-						for(VertexCacheDataMap::iterator iter = vs_map.begin();
-							iter != vs_map.end(); ++iter)
+						VertexCacheDataMap &same_pos_vertices = (*p_vertex_cache_map)[v_data];
+						for(VertexCacheDataMap::iterator spos_i = same_pos_vertices.begin();
+							spos_i != same_pos_vertices.end(); ++spos_i)
 						{
-							const eiVector &compare_vert = iter->second.vs;
-							const eiVector2 &compare_uv = iter->second.uv;
+							size_t compare_index = spos_i->first;
+							const eiVector &compare_vert = pContainVertex->vertices[compare_index];
+							const eiVector2 &compare_uv = pContainVertex->uvs[compare_index];
 							//size_t combine_vertice_start_index = 0;
 							//size_t combine_vertice_start_index1 = 0;
 							//size_t combine_vertice_start_index2 = 0;
 							std::vector<TriangleIndex> triangle_num;
-							if(std::abs(curr_vertex.x - compare_vert.x) < REMOVE_VERTEX_EPS &&
-								std::abs(curr_vertex.y - compare_vert.y) < REMOVE_VERTEX_EPS &&
-								std::abs(curr_vertex.z - compare_vert.z) < REMOVE_VERTEX_EPS &&
-								std::abs(curr_uv.x - compare_uv.x) < REMOVE_VERTEX_EPS &&
-								std::abs(curr_uv.y - compare_uv.y) < REMOVE_VERTEX_EPS)
+				
+							size_t index = compare_index;								
+							if(pContainVertex->indices.size() >= 3)
 							{
-								size_t index = iter->first;
-								
-								if(pContainVertex->indices.size() >= 3)
+								for(int vi = pContainVertex->indices.size() - 1; vi >= 0; --vi)
 								{
-									for(int vi = pContainVertex->indices.size() - 1; vi >= 0; --vi)
+									if(pContainVertex->indices[vi] == index)
 									{
-										if(pContainVertex->indices[vi] == index)
-										{
-											float offset = vi % 3;
-											size_t st_id = vi - offset;
-											triangle_num.push_back(TriangleIndex(
-												pContainVertex->indices[st_id], 
-												pContainVertex->indices[st_id + 1], 
-												pContainVertex->indices[st_id + 2]));
+										float offset = vi % 3;
+										size_t st_id = vi - offset;
+										triangle_num.push_back(TriangleIndex(
+											pContainVertex->indices[st_id], 
+											pContainVertex->indices[st_id + 1], 
+											pContainVertex->indices[st_id + 2]));
 											
-										}
 									}
 								}
+							}
 								
-								/*if(triangle_num.size()>0)
-								{
-									printf("triangle_num = %d\n", triangle_num.size());
-								}*/
-								for(int ti = 0; ti < triangle_num.size(); ++ti)
-								{									
-									p0 = ei_vector(
-										pContainVertex->vertices[triangle_num[ti].i].x, 
-										pContainVertex->vertices[triangle_num[ti].i].y, 
-										pContainVertex->vertices[triangle_num[ti].i].z);
-									p1 = ei_vector(
-										pContainVertex->vertices[triangle_num[ti].j].x, 
-										pContainVertex->vertices[triangle_num[ti].j].y, 
-										pContainVertex->vertices[triangle_num[ti].j].z);
-									p2 = ei_vector(
-										pContainVertex->vertices[triangle_num[ti].k].x, 
-										pContainVertex->vertices[triangle_num[ti].k].y, 
-										pContainVertex->vertices[triangle_num[ti].k].z);
-									a = normalize(p2 - p1);
-									b = normalize(p1 - p0);
-									eiVector combine_vertice_normal = normalize(cross(b, a));
+							/*if(triangle_num.size()>0)
+							{
+								printf("triangle_num = %d\n", triangle_num.size());
+							}*/
+							for(int ti = 0; ti < triangle_num.size(); ++ti)
+							{
+								p0 = ei_vector(
+									pContainVertex->vertices[triangle_num[ti].i].x, 
+									pContainVertex->vertices[triangle_num[ti].i].y, 
+									pContainVertex->vertices[triangle_num[ti].i].z);
+								p1 = ei_vector(
+									pContainVertex->vertices[triangle_num[ti].j].x, 
+									pContainVertex->vertices[triangle_num[ti].j].y, 
+									pContainVertex->vertices[triangle_num[ti].j].z);
+								p2 = ei_vector(
+									pContainVertex->vertices[triangle_num[ti].k].x, 
+									pContainVertex->vertices[triangle_num[ti].k].y, 
+									pContainVertex->vertices[triangle_num[ti].k].z);
+								a = normalize(p2 - p1);
+								b = normalize(p1 - p0);
+								eiVector combine_vertice_normal = normalize(cross(b, a));
 
-									if (dot(curr_normal, combine_vertice_normal) > COMBINE_NORMAL_THRESHOLD)
-									{
-										is_redundancy = true;
-										vert_indices.push_back(iter->first);
-										break;
-									}
-								}								
+								if (dot(curr_normal, combine_vertice_normal) > COMBINE_NORMAL_THRESHOLD)
+								{
+									is_redundancy = true;
+									vert_indices.push_back(compare_index);
+									break;
+								}
 							}
 						}
 					}
 					else
 					{
-						(*p_vertex_cache_map)[key] = VertexCacheDataMap();
+						VertexCacheMap::value_type item(v_data, VertexCacheDataMap());
+						p_vertex_cache_map->insert(item);
 					}
 
 
@@ -607,7 +646,9 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 						VertexCacheData v_cache_data;
 						v_cache_data.vs = curr_vertex;
 						v_cache_data.uv = curr_uv;
-						(*p_vertex_cache_map)[key].insert(std::make_pair(index, v_cache_data));
+						
+						VertexCacheDataMap::value_type item(index, v_data);
+						(*p_vertex_cache_map)[v_data].insert(item);
 
 						vert_indices.push_back(index);
 						pContainVertex->vertices.push_back(curr_vertex);
@@ -730,4 +771,20 @@ EH_Sun create_sun_dir_light(const eiVector &dir)
 	sun.soft_shadow = 1.0f;
 
 	return sun;
+}
+
+void fix_inf_vertex(eiVector &v)
+{
+	if(boost::math::isinf(v.x))
+	{
+		v.x = 0;
+	}
+	if(boost::math::isinf(v.y))
+	{
+		v.y = 0;
+	}
+	if(boost::math::isinf(v.z))
+	{
+		v.z = 0;
+	}
 }
