@@ -1,4 +1,5 @@
 #include "Material.h"
+#include <ei_platform.h>
 
 MaterialContainer g_material_container;
 
@@ -50,7 +51,7 @@ void GetMaterialInfo(SUMaterialRef material)
 			CSUString texture_name;
 			SU_CALL(SUTextureGetFileName(texture, texture_name));
 			info.texture_name_ = texture_name.utf8();
-			char texPath[128];
+			char texPath[EI_MAX_FILE_NAME_LEN];
 			const char *projectDir = g_material_container.GetProjectName();
 			if (ACCESS(projectDir, 0))
 			{
@@ -94,7 +95,7 @@ void GetAllMaterials(SUModelRef model)
 		for (size_t i = 0; i<count; i++) {
 			// add index into each material name to avoid duplication
 			CSUString name;
-			char mat_name[512];
+			char mat_name[EI_MAX_FILE_NAME_LEN];
 			SU_CALL(SUMaterialGetNameLegacyBehavior(materials[i], name));
 			sprintf(mat_name, "%s_%d", name.utf8().c_str(), i);
 			SUMaterialSetName(materials[i], mat_name);

@@ -30,7 +30,7 @@ const int default_height = 720;
 const float REMOVE_VERTEX_EPS = 0.00000001;
 const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(70));
 
-const std::string MAT_PATH = "./materials";
+std::string MAT_PATH;
 
 struct Vertex
 {
@@ -134,7 +134,10 @@ void import_mat_list()
 {
 	std::locale global_loc = std::locale(); 
 	std::locale loc(global_loc, new boost::filesystem::detail::utf8_codecvt_facet); 
-	boost::filesystem::path::imbue(loc); 
+	boost::filesystem::path::imbue(loc);
+	char cur_dir[ EI_MAX_FILE_NAME_LEN ];
+	ei_get_current_directory(cur_dir);
+	MAT_PATH = cur_dir + std::string("/materials");
 	boost::filesystem::path p(MAT_PATH);
 	bool is_path_valid = boost::filesystem::exists(p);
 	if(is_path_valid)
@@ -150,7 +153,11 @@ void import_mat_list()
 			else
 				continue;
 		}
-	}	
+	}
+	else
+	{
+		printf("Invalid materials path: %s\n", MAT_PATH.c_str());
+	}
 }
 
 bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
@@ -160,8 +167,18 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 
 	// Load the model from a file
 	SUModelRef model = SU_INVALID;
-	SUResult res = SUModelCreateFromFile(&model, skp_file_name);
-	printf("Read %s finish!\n", skp_file_name);
+	SUResult res = SUModelCreateFromFile(&model, skp_file_name);	
+
+	// It's best to always check the return code from each SU function call.
+	// Only showing this check once to keep this example short.
+	if (res != SU_ERROR_NONE)
+	{
+		SUModelRelease(&model);
+		SUTerminate();
+		printf("Open %s failed! Error code = %d\n", skp_file_name, res);
+		return false;
+	}
+	printf("Read %s finish!\n", skp_file_name);	
 
 	//Add a default material
 	EH_Material default_mat;
@@ -170,11 +187,6 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	default_mat.diffuse_color[2] = 1.0f;
 	default_mat.diffuse_weight = 0.7f;
 	g_mtl_map.insert(std::pair<std::string, EH_Material>(DEFAULT_MTL_NAME, default_mat));
-
-	// It's best to always check the return code from each SU function call.
-	// Only showing this check once to keep this example short.
-	if (res != SU_ERROR_NONE)
-		return false;
 
 	//import material list
 	import_mat_list();
@@ -229,7 +241,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	for (MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin();
 		iter != g_mtl_to_vertex_map.end(); ++iter)
 	{
-		char poly_name[128];
+		char poly_name[EI_MAX_FILE_NAME_LEN];
 		sprintf(poly_name, "ploy_mesh_%d", poly_index);
 		convert_mesh_and_mtl(ctx, iter->first, iter->second, poly_name);
 
@@ -300,6 +312,7 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 			EH_set_sun(ctx, &eh_sun);
 
 			printf("create sun dir light !\n");
+			return;
 		}
 	}
 
@@ -319,7 +332,7 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 	std::string import_ess_filename;
 	if (mat.diffuse_tex.filename)
 	{
-		std::string tex_filename = mat.diffuse_tex.filename;				
+		std::string tex_filename = mat.diffuse_tex.filename;
 		for(int i = 0; i < mat_list.size(); ++i)
 		{
 			if (tex_filename.find(mat_list[i]) != std::string::npos)
@@ -672,7 +685,7 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 
 void export_light(EH_Context *ctx)
 {
-	char light_inst_name[64];
+	char light_inst_name[EI_MAX_FILE_NAME_LEN];
 	for(int i = 0; i < light_vector.size(); ++i)
 	{
 		sprintf(light_inst_name, "IES_light_inst%d", i);
