@@ -737,12 +737,12 @@ EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &nor
 	eiVector zaxis = normal;
 	//printf("zaxis = %f, %f, %f\n", zaxis.x, zaxis.y, zaxis.z);
 	eiVector xaxis = normalize(cross(ei_vector(0.0f, 0.0f, 1.0f), zaxis));
-	if (xaxis.x < EI_SCALAR_EPS && xaxis.y < EI_SCALAR_EPS && xaxis.z < EI_SCALAR_EPS) //z axis parallel to (0, 1, 0)
+	if (std::abs(xaxis.x) < EI_SCALAR_EPS && std::abs(xaxis.y) < EI_SCALAR_EPS && std::abs(xaxis.z) < EI_SCALAR_EPS) //z axis parallel to (0, 1, 0)
 	{
 		xaxis = ei_vector(-1.0f, 0.0f, 0.0f);
 	}
 	//printf("xaxis = %f, %f, %f\n", xaxis.x, xaxis.y, xaxis.z);
-	eiVector yaxis = cross(zaxis, xaxis);
+	eiVector yaxis = normalize(cross(zaxis, xaxis));
 	//printf("yaxis = %f, %f, %f\n", yaxis.x, yaxis.y, yaxis.z);
 	//printf("pos = %f, %f, %f\n", pos.x, pos.y, pos.z);
 	eiMatrix ei_tran = ei_matrix(
