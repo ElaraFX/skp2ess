@@ -31,6 +31,7 @@ const float REMOVE_VERTEX_EPS = 0.00000001;
 const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(70));
 
 std::string MAT_PATH;
+bool g_has_sun = false;
 
 struct Vertex
 {
@@ -125,6 +126,8 @@ void release_all_res();
 EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal);
 EH_Sun create_sun_dir_light(const eiVector &dir);
 void fix_inf_vertex(eiVector &v);
+void set_day_exposure(EH_Context *ctx);
+void set_night_exposure(EH_Context *ctx);
 
 #ifdef _MSC_VER
 std::wstring to_utf16(std::string str);
@@ -254,6 +257,16 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 
 	export_light(ctx);
 
+	//add exposure
+	if(g_has_sun)
+	{
+		set_day_exposure(ctx);
+	}
+	else
+	{
+		set_night_exposure(ctx);
+	}
+
 	// Must release the model or there will be memory leaks
 	SUModelRelease(&model);
 
@@ -307,6 +320,7 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 		}
 		else if (tex_filename.find("sun_direction") != std::string::npos)
 		{
+			g_has_sun = true;
 			eiVector sun_dir = ei_vector(-vertex->normals[0].x, -vertex->normals[0].y, -vertex->normals[0].z);
 			EH_Sun eh_sun = create_sun_dir_light(sun_dir);
 			EH_set_sun(ctx, &eh_sun);
@@ -470,9 +484,12 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 				if(material_name.find("ehlight") != std::string::npos)
 				{
 					EH_Light light;
-					light.intensity = 25000.0f;
+					light.intensity = 146000.0f;
 					light.type = EH_LIGHT_IES;
 					light.ies_filename = "./19.ies";
+					light.light_color[0] = 0.658824f;
+					light.light_color[1] = 0.796078f;
+					light.light_color[2] = 0.964706f;
 					std::vector<SUPoint3D> vertices(1);
 					size_t actually_count;
 					SUMeshHelperGetVertices(mesh_ref, 1, &vertices[0], &actually_count);
@@ -729,6 +746,8 @@ void release_all_res()
 	g_mtl_vertex_cache_map.clear();
 	mat_list.clear();
 	light_vector.clear();
+
+	g_has_sun = false;
 }
 
 EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal)
@@ -800,4 +819,39 @@ void fix_inf_vertex(eiVector &v)
 	{
 		v.z = 0;
 	}
+}
+
+void set_day_exposure(EH_Context *ctx)
+{
+	EH_Exposure day_expo;
+	day_expo.exposure_value = 0.5f;
+	day_expo.exposure_whitepoint = 6500.0f;
+	EH_set_exposure(ctx, &day_expo);
+
+
+	EH_Sky sky;
+	sky.enabled = true;
+	sky.hdri_name = "004.hdr";
+	sky.hdri_rotation = radians(0);
+	sky.intensity = 20.0f;
+	EH_set_sky(ctx, &sky);
+}
+
+void set_night_exposure(EH_Context *ctx)
+{
+	EH_Exposure night_expo;
+	night_expo.exposure_value = -0.5f;
+	night_expo.exposure_highlight = 0.1f;
+	night_expo.exposure_shadow = 0.4f;
+	night_expo.exposure_saturation = 1.3f;
+	night_expo.exposure_whitepoint = 6000.0f;
+	night_expo.display_gamma = 2.596f;
+	EH_set_exposure(ctx, &night_expo);
+
+	EH_Sky sky;
+	sky.enabled = true;
+	sky.hdri_name = "004.hdr";
+	sky.hdri_rotation = radians(0);
+	sky.intensity = 20.0f;
+	EH_set_sky(ctx, &sky);
 }
