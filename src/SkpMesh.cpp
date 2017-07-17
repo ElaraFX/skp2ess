@@ -799,7 +799,7 @@ EH_Sun create_sun_dir_light(const eiVector &dir)
 	//printf("theta = %f, phi = %f\n", sun.dir[0] * (180.0/EI_PI), sun.dir[1] * (180.0/EI_PI));
 	float color[3] = {0.94902, 0.776471, 0.619608};
 	memcpy(sun.color, color, sizeof(color));
-	sun.intensity = 30.4;
+	sun.intensity = 100.0f;
 	sun.soft_shadow = 1.0f;
 
 	return sun;
@@ -831,9 +831,9 @@ void set_day_exposure(EH_Context *ctx)
 
 	EH_Sky sky;
 	sky.enabled = true;
-	sky.hdri_name = "004.hdr";
+	sky.hdri_name = "day.hdr";
 	sky.hdri_rotation = radians(0);
-	sky.intensity = 20.0f;
+	sky.intensity = 100.0f;
 	EH_set_sky(ctx, &sky);
 }
 
@@ -850,8 +850,8 @@ void set_night_exposure(EH_Context *ctx)
 
 	EH_Sky sky;
 	sky.enabled = true;
-	sky.hdri_name = "004.hdr";
+	sky.hdri_name = "night.hdr";
 	sky.hdri_rotation = radians(0);
-	sky.intensity = 20.0f;
+	sky.intensity = 1.0f;
 	EH_set_sky(ctx, &sky);
 }
