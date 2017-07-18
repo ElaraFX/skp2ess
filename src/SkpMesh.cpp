@@ -11,6 +11,7 @@
 #include <SketchUpAPI/common.h>
 #include <SketchUpAPI/model/mesh_helper.h>
 #include <SketchUpAPI/model/scene.h>
+#include <SketchUpAPI/model/group.h>
 #include <SketchUpAPI/model/camera.h>
 #include <SketchUpAPI/model/component_definition.h>
 #include <SketchUpAPI/model/shadow_info.h>
@@ -116,7 +117,7 @@ std::vector<std::string> mat_list;
 typedef std::vector<EH_Light> LightsVector;
 LightsVector light_vector;
 
-void export_mesh_mtl_from_entities(SUEntitiesRef entities);
+void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform = NULL);
 void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name);
 void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_scale);
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
@@ -251,17 +252,15 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		}
 	}
 
-	//Get external group entities
-	size_t group_num;
-	SUModelGetNumGroupDefinitions(model, &group_num);
-	printf("group_num = %d\n", group_num);
-	if(group_num > 0)
-	{		
-		std::vector<SUComponentDefinitionRef> definitions(group_num);
-		SUModelGetGroupDefinitions(model, component_num, &definitions[0], &group_num);		
-
-		for (int group_i = 0; group_i < group_num; ++group_i)
-		{			
+	// Get Groups
+	size_t num_groups = 0;
+	SUEntitiesGetNumGroups(entities, &num_groups);
+	if (num_groups > 0) 
+	{
+		std::vector<SUGroupRef> groups(num_groups);
+		SU_CALL(SUEntitiesGetGroups(entities, num_groups, &groups[0], &num_groups));
+		for (size_t group_i = 0; group_i < num_groups; group_i++) 
+		{
 			for(MtlVertexCacheMap::iterator iter = g_mtl_vertex_cache_map.begin(); 
 				iter != g_mtl_vertex_cache_map.end(); ++iter)
 			{
@@ -269,19 +268,20 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 				iter->second = NULL;
 			}
 
-			//g_mtl_to_vertex_map.clear();
-			//g_mtl_map.clear();
 			g_mtl_vertex_cache_map.clear();
-
 			printf("export curr group id = %d\n", group_i);
-			SUComponentDefinitionRef &com = definitions[group_i];
-			SUPoint3D p;
-			SUComponentDefinitionGetInsertPoint(com, &p);
+			SUGroupRef group = groups[group_i];
+			SUComponentDefinitionRef group_component = SU_INVALID;
+			SUEntitiesRef group_entities = SU_INVALID;
+			SU_CALL(SUGroupGetEntities(group, &group_entities));
+
+			// Write transformation
+			SUTransformation transform;
+			SU_CALL(SUGroupGetTransform(group, &transform));
 
 			SUEntitiesRef c_entities;
-			SUComponentDefinitionGetEntities(com, &c_entities);
-
-			export_mesh_mtl_from_entities(c_entities);
+			SUGroupGetEntities(group, &c_entities);
+			export_mesh_mtl_from_entities(c_entities, &transform);
 		}
 	}
 
@@ -501,7 +501,7 @@ void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
 	memcpy(cam.view_to_world, &ei_tran.m[0], sizeof(cam.view_to_world));
 }
 
-void export_mesh_mtl_from_entities(SUEntitiesRef entities)
+void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform)
 {
 	size_t faceCount = 0;	
 	const size_t MAX_NAME_LENGTH = 128;
@@ -576,6 +576,18 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 			}
 			std::vector<SUPoint3D> vertices(num_vertices);
 			SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);
+
+			// Transform all vertices
+			if (transform != NULL)
+			{			
+				for (int i = 0; i < num_vertices; i++)
+				{
+					double pos4[4] = {vertices[i].x, vertices[i].y, vertices[i].z, 1};
+					vertices[i].x = transform->values[0] * pos4[0] + transform->values[4] * pos4[1] + transform->values[8] * pos4[2] + transform->values[12] * pos4[3];
+					vertices[i].y = transform->values[1] * pos4[0] + transform->values[5] * pos4[1] + transform->values[9] * pos4[2] + transform->values[13] * pos4[3];
+					vertices[i].z = transform->values[2] * pos4[0] + transform->values[6] * pos4[1] + transform->values[10] * pos4[2] + transform->values[14] * pos4[3];
+				}
+			}
 
 			//Get UV
 			std::vector<SUPoint3D> front_stq(num_vertices);
