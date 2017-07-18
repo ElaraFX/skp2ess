@@ -224,12 +224,57 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	SUModelGetNumComponentDefinitions(model, &component_num);
 	if(component_num > 0)
 	{
+		for(MtlVertexCacheMap::iterator iter = g_mtl_vertex_cache_map.begin(); 
+			iter != g_mtl_vertex_cache_map.end(); ++iter)
+		{
+			delete iter->second;
+			iter->second = NULL;
+		}
+
+		//g_mtl_to_vertex_map.clear();
+		//g_mtl_map.clear();
+		g_mtl_vertex_cache_map.clear();
+
 		std::vector<SUComponentDefinitionRef> definitions(component_num);
 		SUModelGetComponentDefinitions(model, component_num, &definitions[0], &component_num);		
 
 		for (int ci = 0; ci < component_num; ++ci)
 		{
 			SUComponentDefinitionRef &com = definitions[ci];
+			SUPoint3D p;
+			SUComponentDefinitionGetInsertPoint(com, &p);
+
+			SUEntitiesRef c_entities;
+			SUComponentDefinitionGetEntities(com, &c_entities);
+
+			export_mesh_mtl_from_entities(c_entities);
+		}
+	}
+
+	//Get external group entities
+	size_t group_num;
+	SUModelGetNumGroupDefinitions(model, &group_num);
+	printf("group_num = %d\n", group_num);
+	if(group_num > 0)
+	{		
+		std::vector<SUComponentDefinitionRef> definitions(group_num);
+		SUModelGetGroupDefinitions(model, component_num, &definitions[0], &group_num);		
+
+		for (int group_i = 0; group_i < group_num; ++group_i)
+		{			
+			for(MtlVertexCacheMap::iterator iter = g_mtl_vertex_cache_map.begin(); 
+				iter != g_mtl_vertex_cache_map.end(); ++iter)
+			{
+				delete iter->second;
+				iter->second = NULL;
+			}
+
+			//g_mtl_to_vertex_map.clear();
+			//g_mtl_map.clear();
+			g_mtl_vertex_cache_map.clear();
+
+			printf("export curr group id = %d\n", group_i);
+			SUComponentDefinitionRef &com = definitions[group_i];
 			SUPoint3D p;
 			SUComponentDefinitionGetInsertPoint(com, &p);
 
