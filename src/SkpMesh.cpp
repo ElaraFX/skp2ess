@@ -14,6 +14,7 @@
 #include <SketchUpAPI/model/group.h>
 #include <SketchUpAPI/model/camera.h>
 #include <SketchUpAPI/model/component_definition.h>
+#include <SketchUpAPI/model/component_instance.h>
 #include <SketchUpAPI/model/shadow_info.h>
 #include <SketchUpAPI/unicodestring.h>
 #include <SketchUpAPI/model/typed_value.h>
@@ -164,6 +165,84 @@ void import_mat_list()
 	}
 }
 
+void MatrixMutiply(SUTransformation &t1, SUTransformation &t2, SUTransformation &tout)
+{
+	for (int i = 0; i < 4; i++)	
+	{
+		for (int j = 0; j < 4; j++)
+		{
+			tout.values[i * 4 + j] = 0;	
+			for (int k = 0; k < 4; k++)
+				tout.values[i * 4 + j] += t1.values[i * 4 + k] * t2.values[k * 4 + j];
+		}
+	}
+}
+
+void writeEntities(SUEntitiesRef &entities, SUTransformation &t)
+{
+	size_t num_instances = 0;
+	SU_CALL(SUEntitiesGetNumInstances(entities, &num_instances));
+	printf("Instances number: %d.\n", num_instances);
+	if (num_instances > 0) 
+	{
+		std::vector<SUComponentInstanceRef> instances(num_instances);
+		SU_CALL(SUEntitiesGetInstances(entities, num_instances,
+										&instances[0], &num_instances));
+		for (size_t c = 0; c < num_instances; c++) 
+		{
+			SUComponentInstanceRef instance = instances[c];
+			SUComponentDefinitionRef definition = SU_INVALID;
+			SU_CALL(SUComponentInstanceGetDefinition(instance, &definition));
+
+			SUTransformation transform, transform_mul;
+			SU_CALL(SUComponentInstanceGetTransform(instance, &transform));
+			MatrixMutiply(transform, t, transform_mul);
+
+			SUEntitiesRef c_entities;
+			SUComponentDefinitionGetEntities(definition, &c_entities);
+
+			export_mesh_mtl_from_entities(c_entities, &transform_mul);
+			writeEntities(c_entities, transform_mul);
+		}
+	}
+
+	// Get Groups
+	size_t num_groups = 0;
+	SUEntitiesGetNumGroups(entities, &num_groups);
+	printf("Groups number: %d.\n", num_groups);
+	if (num_groups > 0) 
+	{
+		std::vector<SUGroupRef> groups(num_groups);
+		SU_CALL(SUEntitiesGetGroups(entities, num_groups, &groups[0], &num_groups));
+		for (size_t group_i = 0; group_i < num_groups; group_i++) 
+		{
+			for(MtlVertexCacheMap::iterator iter = g_mtl_vertex_cache_map.begin(); 
+				iter != g_mtl_vertex_cache_map.end(); ++iter)
+			{
+				delete iter->second;
+				iter->second = NULL;
+			}
+
+			g_mtl_vertex_cache_map.clear();
+			printf("export curr group id = %d\n", group_i);
+			SUGroupRef group = groups[group_i];
+			SUComponentDefinitionRef group_component = SU_INVALID;
+			SUEntitiesRef group_entities = SU_INVALID;
+			SU_CALL(SUGroupGetEntities(group, &group_entities));
+
+			// Write transformation
+			SUTransformation transform, transform_mul;
+			SU_CALL(SUGroupGetTransform(group, &transform));
+			MatrixMutiply(transform, t, transform_mul);
+
+			SUEntitiesRef c_entities;
+			SUGroupGetEntities(group, &c_entities);
+			export_mesh_mtl_from_entities(c_entities, &transform_mul);
+			writeEntities(c_entities, transform_mul);
+		}
+	}
+}
+
 bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 {	
 	// Always initialize the API before using it
@@ -221,69 +300,42 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	export_mesh_mtl_from_entities(entities);
 
 	// Get external component entities
-	size_t component_num;
-	SUModelGetNumComponentDefinitions(model, &component_num);
-	if(component_num > 0)
-	{
-		for(MtlVertexCacheMap::iterator iter = g_mtl_vertex_cache_map.begin(); 
-			iter != g_mtl_vertex_cache_map.end(); ++iter)
-		{
-			delete iter->second;
-			iter->second = NULL;
-		}
+	//size_t component_num;
+	//SUModelGetNumComponentDefinitions(model, &component_num);
+	//printf("Components number: %d.\n", component_num);
+	//if(component_num > 0)
+	//{
+	//	for(MtlVertexCacheMap::iterator iter = g_mtl_vertex_cache_map.begin(); 
+	//		iter != g_mtl_vertex_cache_map.end(); ++iter)
+	//	{
+	//		delete iter->second;
+	//		iter->second = NULL;
+	//	}
 
-		//g_mtl_to_vertex_map.clear();
-		//g_mtl_map.clear();
-		g_mtl_vertex_cache_map.clear();
+	//	//g_mtl_to_vertex_map.clear();
+	//	//g_mtl_map.clear();
+	//	g_mtl_vertex_cache_map.clear();
 
-		std::vector<SUComponentDefinitionRef> definitions(component_num);
-		SUModelGetComponentDefinitions(model, component_num, &definitions[0], &component_num);		
+	//	std::vector<SUComponentDefinitionRef> definitions(component_num);
+	//	SUModelGetComponentDefinitions(model, component_num, &definitions[0], &component_num);		
 
-		for (int ci = 0; ci < component_num; ++ci)
-		{
-			SUComponentDefinitionRef &com = definitions[ci];
-			SUPoint3D p;
-			SUComponentDefinitionGetInsertPoint(com, &p);
+	//	for (int ci = 0; ci < component_num; ++ci)
+	//	{
+	//		SUComponentDefinitionRef &com = definitions[ci];
+	//		SUPoint3D p;
+	//		SUComponentDefinitionGetInsertPoint(com, &p);
 
-			SUEntitiesRef c_entities;
-			SUComponentDefinitionGetEntities(com, &c_entities);
+	//		SUEntitiesRef c_entities;
+	//		SUComponentDefinitionGetEntities(com, &c_entities);
 
-			export_mesh_mtl_from_entities(c_entities);
-		}
-	}
+	//		export_mesh_mtl_from_entities(c_entities);
+	//	}
+	//}
 
-	// Get Groups
-	size_t num_groups = 0;
-	SUEntitiesGetNumGroups(entities, &num_groups);
-	if (num_groups > 0) 
-	{
-		std::vector<SUGroupRef> groups(num_groups);
-		SU_CALL(SUEntitiesGetGroups(entities, num_groups, &groups[0], &num_groups));
-		for (size_t group_i = 0; group_i < num_groups; group_i++) 
-		{
-			for(MtlVertexCacheMap::iterator iter = g_mtl_vertex_cache_map.begin(); 
-				iter != g_mtl_vertex_cache_map.end(); ++iter)
-			{
-				delete iter->second;
-				iter->second = NULL;
-			}
-
-			g_mtl_vertex_cache_map.clear();
-			printf("export curr group id = %d\n", group_i);
-			SUGroupRef group = groups[group_i];
-			SUComponentDefinitionRef group_component = SU_INVALID;
-			SUEntitiesRef group_entities = SU_INVALID;
-			SU_CALL(SUGroupGetEntities(group, &group_entities));
-
-			// Write transformation
-			SUTransformation transform;
-			SU_CALL(SUGroupGetTransform(group, &transform));
-
-			SUEntitiesRef c_entities;
-			SUGroupGetEntities(group, &c_entities);
-			export_mesh_mtl_from_entities(c_entities, &transform);
-		}
-	}
+	SUTransformation t;
+	memset(t.values, 0, sizeof(double) * 16);
+	t.values[0] = t.values[5] = t.values[10] = t.values[15] = 1;
+	writeEntities(entities, t);
 
 	int poly_index = 0;
 	for (MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin();
