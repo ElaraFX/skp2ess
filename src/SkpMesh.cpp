@@ -491,6 +491,12 @@ void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_s
 	{
 		eh_mtl.transp_weight = 1.0 - mtl_info.alpha_;
 	}
+	if (mtl_info.has_color_)
+	{
+		eh_mtl.diffuse_color[0] = float(mtl_info.color_.red) / 255;
+		eh_mtl.diffuse_color[1] = float(mtl_info.color_.green) / 255;
+		eh_mtl.diffuse_color[2] = float(mtl_info.color_.blue) / 255;
+	}
 }
 
 void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
@@ -844,7 +850,7 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *tra
 			SUMeshHelperGetVertexIndices(mesh_ref, num_indices, &local_indices[0], &num_retrieved);*/
 			for (int i = 0; i < num_indices; ++i)
 			{
-				pContainVertex->indices.push_back(local_indices[i]);
+				pContainVertex->indices.push_back(vert_indices[local_indices[i]]);
 			}
 		}
 	}
