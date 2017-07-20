@@ -182,7 +182,7 @@ void writeEntities(SUEntitiesRef &entities, SUTransformation &t)
 {
 	size_t num_instances = 0;
 	SU_CALL(SUEntitiesGetNumInstances(entities, &num_instances));
-	printf("Instances number: %d.\n", num_instances);
+	//printf("Instances number: %d.\n", num_instances);
 	if (num_instances > 0) 
 	{
 		std::vector<SUComponentInstanceRef> instances(num_instances);
@@ -209,7 +209,7 @@ void writeEntities(SUEntitiesRef &entities, SUTransformation &t)
 	// Get Groups
 	size_t num_groups = 0;
 	SUEntitiesGetNumGroups(entities, &num_groups);
-	printf("Groups number: %d.\n", num_groups);
+	//printf("Groups number: %d.\n", num_groups);
 	if (num_groups > 0) 
 	{
 		std::vector<SUGroupRef> groups(num_groups);
@@ -224,7 +224,7 @@ void writeEntities(SUEntitiesRef &entities, SUTransformation &t)
 			}
 
 			g_mtl_vertex_cache_map.clear();
-			printf("export curr group id = %d\n", group_i);
+			//printf("export curr group id = %d\n", group_i);
 			SUGroupRef group = groups[group_i];
 			SUComponentDefinitionRef group_component = SU_INVALID;
 			SUEntitiesRef group_entities = SU_INVALID;
@@ -379,7 +379,7 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 {
 	//vertex->normals.reserve(vertex->vertices.size());
 	//Generate normals	
-	eiVector zero_val =  ei_vector(0.0f, 0.0f, 0.0f);
+	/*eiVector zero_val =  ei_vector(0.0f, 0.0f, 0.0f);
 	vertex->normals.resize(vertex->vertices.size(), zero_val);
 	for(std::vector<uint_t>::iterator it = vertex->indices.begin(); it != vertex->indices.end(); it += 3)
 	{
@@ -398,7 +398,7 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 	for(int i = 0; i < vertex->normals.size(); ++i)
 	{
 		vertex->normals[i] = normalize(vertex->normals[i]);
-	}
+	}*/
 
 	EH_Material mat = g_mtl_map[mtl_name];
 	//create camera
@@ -627,7 +627,21 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *tra
 				printf("number of vertices is 0!\n");
 			}
 			std::vector<SUPoint3D> vertices(num_vertices);
-			SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);
+			SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);			
+
+			//Get UV
+			std::vector<SUPoint3D> front_stq(num_vertices);
+			size_t count = 0;
+			SUMeshHelperGetFrontSTQCoords(mesh_ref, num_vertices, &front_stq[0], &count);
+
+			//Get Normals
+			std::vector<SUVector3D> su_normals(num_vertices);
+			size_t r_normal_count = 0;
+			SUMeshHelperGetNormals(mesh_ref, num_vertices, &su_normals[0], &r_normal_count);
+			if(r_normal_count != num_vertices)
+			{
+				printf("Error, normal num != vertices num...\n");
+			}
 
 			// Transform all vertices
 			if (transform != NULL)
@@ -638,13 +652,21 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *tra
 					vertices[i].x = transform->values[0] * pos4[0] + transform->values[4] * pos4[1] + transform->values[8] * pos4[2] + transform->values[12] * pos4[3];
 					vertices[i].y = transform->values[1] * pos4[0] + transform->values[5] * pos4[1] + transform->values[9] * pos4[2] + transform->values[13] * pos4[3];
 					vertices[i].z = transform->values[2] * pos4[0] + transform->values[6] * pos4[1] + transform->values[10] * pos4[2] + transform->values[14] * pos4[3];
+
+					eiMatrix ei_mat = ei_matrix(
+						transform->values[0], transform->values[4], transform->values[8], transform->values[12],
+						transform->values[1], transform->values[5], transform->values[9], transform->values[13],
+						transform->values[2], transform->values[6], transform->values[10], transform->values[14],
+						transform->values[3], transform->values[7], transform->values[11], transform->values[15]
+					);
+					eiMatrix normal_mat = inverse(transpose(ei_mat));
+
+					double nor4[3] = {su_normals[i].x, su_normals[i].y, su_normals[i].z};
+					su_normals[i].x = normal_mat.m[0][0] * nor4[0] + normal_mat.m[0][1] * nor4[1] + normal_mat.m[0][2] * nor4[2];
+					su_normals[i].y = normal_mat.m[1][0] * nor4[0] + normal_mat.m[1][1] * nor4[1] + normal_mat.m[1][2] * nor4[2];
+					su_normals[i].z = normal_mat.m[2][0] * nor4[0] + normal_mat.m[2][1] * nor4[1] + normal_mat.m[2][2] * nor4[2];					
 				}
 			}
-
-			//Get UV
-			std::vector<SUPoint3D> front_stq(num_vertices);
-			size_t count = 0;
-			SUMeshHelperGetFrontSTQCoords(mesh_ref, num_vertices, &front_stq[0], &count);
 
 			//std::vector<eiVector> convert_vertices(num_vertices);
 			Vertex *pContainVertex = NULL;
@@ -683,118 +705,137 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *tra
 			//vert_indices.reserve(num_triangles * 3);
 			//pContainVertex->vertices.reserve(num_vertices);
 			//pContainVertex->uvs.reserve(num_vertices);
-			for (int i = 0; i < num_vertices; i += 3)
-			{
-				//Whether vertice is redundancy
-				eiVector p0 = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
-				fix_inf_vertex(p0);
-				eiVector p1 = ei_vector(vertices[i+1].x, vertices[i+1].y, vertices[i+1].z);
-				fix_inf_vertex(p1);
-				eiVector p2 = ei_vector(vertices[i+2].x, vertices[i+2].y, vertices[i+2].z);
-				fix_inf_vertex(p2);
-				eiVector a = normalize(p2 - p1);
-				eiVector b = normalize(p1 - p0);
-				eiVector curr_normal = normalize(cross(b, a));
+			//for (int i = 0; i < num_vertices; i += 3)
+			//{
+			//	//Whether vertice is redundancy
+			//	eiVector p0 = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
+			//	fix_inf_vertex(p0);
+			//	eiVector p1 = ei_vector(vertices[i+1].x, vertices[i+1].y, vertices[i+1].z);
+			//	fix_inf_vertex(p1);
+			//	eiVector p2 = ei_vector(vertices[i+2].x, vertices[i+2].y, vertices[i+2].z);
+			//	fix_inf_vertex(p2);
+			//	eiVector a = normalize(p2 - p1);
+			//	eiVector b = normalize(p1 - p0);
+			//	eiVector curr_normal = normalize(cross(b, a));
 
 				//eiVector face_vertices[3] = {p0, p1, p2};
 
-				for (int j = 0; j < 3; ++j)
-				{
-					eiVector curr_vertex = ei_vector(vertices[i+j].x, vertices[i+j].y, vertices[i+j].z);
-					fix_inf_vertex(curr_vertex);
-					eiVector2 curr_uv = ei_vector2(front_stq[i+j].x * uv_scale.u, front_stq[i+j].y * uv_scale.v);
-					bool is_redundancy = false;
+			//	for (int j = 0; j < 3; ++j)
+			//	{
+			//		eiVector curr_vertex = ei_vector(vertices[i+j].x, vertices[i+j].y, vertices[i+j].z);
+			//		fix_inf_vertex(curr_vertex);
+			//		eiVector2 curr_uv = ei_vector2(front_stq[i+j].x * uv_scale.u, front_stq[i+j].y * uv_scale.v);
+			//		bool is_redundancy = false;
 
-					//int key = (int)(vertices[i+j].x * vertices[i+j].y * vertices[i+j].z);
-					VertexCacheData v_data;
-					v_data.vs = curr_vertex;
-					v_data.uv = curr_uv;
-					if (p_vertex_cache_map->find(v_data) != p_vertex_cache_map->end())
-					{
-						VertexCacheDataMap &same_pos_vertices = (*p_vertex_cache_map)[v_data];
-						for(VertexCacheDataMap::iterator spos_i = same_pos_vertices.begin();
-							spos_i != same_pos_vertices.end(); ++spos_i)
-						{
-							size_t compare_index = spos_i->first;
-							const eiVector &compare_vert = pContainVertex->vertices[compare_index];
-							const eiVector2 &compare_uv = pContainVertex->uvs[compare_index];
-							//size_t combine_vertice_start_index = 0;
-							//size_t combine_vertice_start_index1 = 0;
-							//size_t combine_vertice_start_index2 = 0;
-							std::vector<TriangleIndex> triangle_num;
-				
-							size_t index = compare_index;								
-							if(pContainVertex->indices.size() >= 3)
-							{
-								for(int vi = pContainVertex->indices.size() - 1; vi >= 0; --vi)
-								{
-									if(pContainVertex->indices[vi] == index)
-									{
-										float offset = vi % 3;
-										size_t st_id = vi - offset;
-										triangle_num.push_back(TriangleIndex(
-											pContainVertex->indices[st_id], 
-											pContainVertex->indices[st_id + 1], 
-											pContainVertex->indices[st_id + 2]));
-											
-									}
-								}
-							}
-								
-							/*if(triangle_num.size()>0)
-							{
-								printf("triangle_num = %d\n", triangle_num.size());
-							}*/
-							for(int ti = 0; ti < triangle_num.size(); ++ti)
-							{
-								p0 = ei_vector(
-									pContainVertex->vertices[triangle_num[ti].i].x, 
-									pContainVertex->vertices[triangle_num[ti].i].y, 
-									pContainVertex->vertices[triangle_num[ti].i].z);
-								p1 = ei_vector(
-									pContainVertex->vertices[triangle_num[ti].j].x, 
-									pContainVertex->vertices[triangle_num[ti].j].y, 
-									pContainVertex->vertices[triangle_num[ti].j].z);
-								p2 = ei_vector(
-									pContainVertex->vertices[triangle_num[ti].k].x, 
-									pContainVertex->vertices[triangle_num[ti].k].y, 
-									pContainVertex->vertices[triangle_num[ti].k].z);
-								a = normalize(p2 - p1);
-								b = normalize(p1 - p0);
-								eiVector combine_vertice_normal = normalize(cross(b, a));
+			//		//int key = (int)(vertices[i+j].x * vertices[i+j].y * vertices[i+j].z);
+			//		VertexCacheData v_data;
+			//		v_data.vs = curr_vertex;
+			//		v_data.uv = curr_uv;
+			//		if (p_vertex_cache_map->find(v_data) != p_vertex_cache_map->end())
+			//		{
+			//			VertexCacheDataMap &same_pos_vertices = (*p_vertex_cache_map)[v_data];
+			//			for(VertexCacheDataMap::iterator spos_i = same_pos_vertices.begin();
+			//				spos_i != same_pos_vertices.end(); ++spos_i)
+			//			{
+			//				size_t compare_index = spos_i->first;
+			//				const eiVector &compare_vert = pContainVertex->vertices[compare_index];
+			//				const eiVector2 &compare_uv = pContainVertex->uvs[compare_index];
+			//				//size_t combine_vertice_start_index = 0;
+			//				//size_t combine_vertice_start_index1 = 0;
+			//				//size_t combine_vertice_start_index2 = 0;
+			//				std::vector<TriangleIndex> triangle_num;
+			//	
+			//				size_t index = compare_index;								
+			//				if(pContainVertex->indices.size() >= 3)
+			//				{
+			//					for(int vi = pContainVertex->indices.size() - 1; vi >= 0; --vi)
+			//					{
+			//						if(pContainVertex->indices[vi] == index)
+			//						{
+			//							float offset = vi % 3;
+			//							size_t st_id = vi - offset;
+			//							triangle_num.push_back(TriangleIndex(
+			//								pContainVertex->indices[st_id], 
+			//								pContainVertex->indices[st_id + 1], 
+			//								pContainVertex->indices[st_id + 2]));
+			//								
+			//						}
+			//					}
+			//				}
+			//					
+			//				/*if(triangle_num.size()>0)
+			//				{
+			//					printf("triangle_num = %d\n", triangle_num.size());
+			//				}*/
+			//				for(int ti = 0; ti < triangle_num.size(); ++ti)
+			//				{
+			//					p0 = ei_vector(
+			//						pContainVertex->vertices[triangle_num[ti].i].x, 
+			//						pContainVertex->vertices[triangle_num[ti].i].y, 
+			//						pContainVertex->vertices[triangle_num[ti].i].z);
+			//					p1 = ei_vector(
+			//						pContainVertex->vertices[triangle_num[ti].j].x, 
+			//						pContainVertex->vertices[triangle_num[ti].j].y, 
+			//						pContainVertex->vertices[triangle_num[ti].j].z);
+			//					p2 = ei_vector(
+			//						pContainVertex->vertices[triangle_num[ti].k].x, 
+			//						pContainVertex->vertices[triangle_num[ti].k].y, 
+			//						pContainVertex->vertices[triangle_num[ti].k].z);
+			//					a = normalize(p2 - p1);
+			//					b = normalize(p1 - p0);
+			//					eiVector combine_vertice_normal = normalize(cross(b, a));
 
-								if (dot(curr_normal, combine_vertice_normal) > COMBINE_NORMAL_THRESHOLD)
-								{
-									is_redundancy = true;
-									vert_indices.push_back(compare_index);
-									break;
-								}
-							}
-						}
-					}
-					else
-					{
-						VertexCacheMap::value_type item(v_data, VertexCacheDataMap());
-						p_vertex_cache_map->insert(item);
-					}
+			//					if (dot(curr_normal, combine_vertice_normal) > COMBINE_NORMAL_THRESHOLD)
+			//					{
+			//						is_redundancy = true;
+			//						vert_indices.push_back(compare_index);
+			//						break;
+			//					}
+			//				}
+			//			}
+			//		}
+			//		else
+			//		{
+			//			VertexCacheMap::value_type item(v_data, VertexCacheDataMap());
+			//			p_vertex_cache_map->insert(item);
+			//		}
 
 
-					if(is_redundancy == false)
-					{
-						size_t index = pContainVertex->vertices.size();
-						VertexCacheData v_cache_data;
-						v_cache_data.vs = curr_vertex;
-						v_cache_data.uv = curr_uv;
-						
-						VertexCacheDataMap::value_type item(index, v_data);
-						(*p_vertex_cache_map)[v_data].insert(item);
+			//		if(is_redundancy == false)
+			//		{
+			//			size_t index = pContainVertex->vertices.size();
+			//			VertexCacheData v_cache_data;
+			//			v_cache_data.vs = curr_vertex;
+			//			v_cache_data.uv = curr_uv;
+			//			
+			//			VertexCacheDataMap::value_type item(index, v_data);
+			//			(*p_vertex_cache_map)[v_data].insert(item);
 
-						vert_indices.push_back(index);
-						pContainVertex->vertices.push_back(curr_vertex);
-						pContainVertex->uvs.push_back(curr_uv);
-					}
-				}
-								
+			//			vert_indices.push_back(index);
+			//			pContainVertex->vertices.push_back(curr_vertex);
+			//			pContainVertex->uvs.push_back(curr_uv);
+			//		}
+			//	}
+			//					
+			//}
+			for (int i = 0; i < num_vertices; ++i)
+			{
+				eiVector curr_vertex = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
+				//fix_inf_vertex(curr_vertex);
+				eiVector2 curr_uv = ei_vector2(front_stq[i].x * uv_scale.u, front_stq[i].y * uv_scale.v);
+				eiVector curr_normal = normalize(ei_vector(su_normals[i].x, su_normals[i].y, su_normals[i].z));
+				size_t index = pContainVertex->vertices.size();
+				VertexCacheData v_cache_data;
+				v_cache_data.vs = curr_vertex;
+				v_cache_data.uv = curr_uv;
+
+				//VertexCacheDataMap::value_type item(index, v_data);
+				//(*p_vertex_cache_map)[v_data].insert(item);
+
+				vert_indices.push_back(index);
+				pContainVertex->vertices.push_back(curr_vertex);
+				pContainVertex->uvs.push_back(curr_uv);
+				pContainVertex->normals.push_back(curr_normal);
 			}
 
 			/*const size_t num_indices = 3 * num_triangles;
@@ -803,7 +844,7 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *tra
 			SUMeshHelperGetVertexIndices(mesh_ref, num_indices, &local_indices[0], &num_retrieved);*/
 			for (int i = 0; i < num_indices; ++i)
 			{
-				pContainVertex->indices.push_back(vert_indices[local_indices[i]]);
+				pContainVertex->indices.push_back(local_indices[i]);
 			}
 		}
 	}
