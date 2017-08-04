@@ -13,3 +13,5 @@
 #include "ElaraHomeAPI.h"
 
 bool skp_to_ess(const char *skp_file_name, EH_Context *ctx);
+
+bool gjj_skp_to_ess(const char *skp_file_name, EH_Context *ctx);

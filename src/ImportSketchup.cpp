@@ -43,7 +43,8 @@ bool import_mesh_from_skp(const char *file_name, const char *output_filename)
 
 	eiTimer export_ess_timer;
 	ei_timer_start(&export_ess_timer);
-	skp_to_ess(file_name, pContext);
+	//skp_to_ess(file_name, pContext);
+	gjj_skp_to_ess(file_name, pContext);
 	ei_timer_stop(&export_ess_timer);
 	printf("export ess time: %f sec.\n", export_ess_timer.duration/1000.0f);
 
