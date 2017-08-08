@@ -18,6 +18,7 @@
 #include <SketchUpAPI/model/shadow_info.h>
 #include <SketchUpAPI/unicodestring.h>
 #include <SketchUpAPI/model/typed_value.h>
+#include <SketchUpAPI/model/drawing_element.h>
 
 #include <unordered_map>
 #include <boost/unordered_map.hpp>
@@ -125,7 +126,7 @@ static std::vector<std::string> mat_list;
 typedef std::vector<EH_Light> LightsVector;
 static LightsVector light_vector;
 
-static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform = NULL);
+static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform, SUMaterialRef parent_mat);
 static void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name);
 static void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_scale);
 static void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
@@ -186,9 +187,10 @@ static void MatrixMutiply(SUTransformation &t1, SUTransformation &t2, SUTransfor
 	}
 }
 
-static void writeEntities(SUEntitiesRef &entities, SUTransformation &t)
+static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMaterialRef w_par_mat)
 {
-	export_mesh_mtl_from_entities(entities, &t);
+	//SUMaterialRef null_mat = SU_INVALID;
+	export_mesh_mtl_from_entities(entities, &t, w_par_mat);
 
 	size_t num_instances = 0;
 	SU_CALL(SUEntitiesGetNumInstances(entities, &num_instances));
@@ -211,8 +213,10 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t)
 			SUEntitiesRef c_entities;
 			SUComponentDefinitionGetEntities(definition, &c_entities);
 
-			export_mesh_mtl_from_entities(c_entities, &transform_mul);
-			writeEntities(c_entities, transform_mul);
+			SUMaterialRef material = SU_INVALID;
+			SUDrawingElementGetMaterial(SUComponentInstanceToDrawingElement(instance), &material);
+			export_mesh_mtl_from_entities(c_entities, &transform_mul, material);
+			writeEntities(c_entities, transform_mul, material);
 		}
 	}
 
@@ -247,8 +251,12 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t)
 
 			SUEntitiesRef c_entities;
 			SUGroupGetEntities(group, &c_entities);
-			export_mesh_mtl_from_entities(c_entities, &transform_mul);
-			writeEntities(c_entities, transform_mul);
+
+			SUMaterialRef material = SU_INVALID;
+			SUDrawingElementGetMaterial(SUGroupToDrawingElement(group), &material);
+
+			export_mesh_mtl_from_entities(c_entities, &transform_mul, material);
+			writeEntities(c_entities, transform_mul, material);
 		}
 	}
 }
@@ -383,7 +391,9 @@ bool gjj_skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	SUTransformation t;
 	memset(t.values, 0, sizeof(double) * 16);
 	t.values[0] = t.values[5] = t.values[10] = t.values[15] = 1;
-	writeEntities(entities, t);
+
+	SUMaterialRef null_mat = SU_INVALID;
+	writeEntities(entities, t, null_mat);
 
 	int poly_index = 0;
 	for (MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin();
@@ -457,20 +467,20 @@ static void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, V
 		
 	bool find_map_material = false;
 	std::string import_ess_filename;
-	if (mat.diffuse_tex.filename)
+	//if (mat.diffuse_tex.filename)	
+	//{
+		//std::string tex_filename = mat.diffuse_tex.filename;
+	for(int i = 0; i < mat_list.size(); ++i)
 	{
-		std::string tex_filename = mat.diffuse_tex.filename;
-		for(int i = 0; i < mat_list.size(); ++i)
+		if (mtl_name.find(mat_list[i]) != std::string::npos)
 		{
-			if (tex_filename.find(mat_list[i]) != std::string::npos)
-			{
-				find_map_material = true;
-				printf("tex = %s\n", tex_filename.c_str());
-				import_ess_filename = MAT_PATH + "/" + mat_list[i] + ".ess";
-				break;
-			}
+			find_map_material = true;
+			printf("mtl_name = %s\n", mtl_name.c_str());
+			import_ess_filename = MAT_PATH + "/" + mat_list[i] + ".ess";
+			break;
 		}
 	}
+	//}
 
 	if (find_map_material)
 	{
@@ -575,7 +585,7 @@ static void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
 	memcpy(cam.view_to_world, &ei_tran.m[0], sizeof(cam.view_to_world));
 }
 
-static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform)
+static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform, SUMaterialRef parent_mat)
 {
 	size_t faceCount = 0;	
 	const size_t MAX_NAME_LENGTH = 128;
@@ -638,6 +648,30 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 						eh_mat.diffuse_color[2] = 1.0f;
 						eh_mat.diffuse_weight = 0.7f;
 						convert_to_eh_mtl(eh_mat, material, uv_scale);
+						g_mtl_map.insert(std::pair<std::string, EH_Material>(material_name, eh_mat));
+					}
+
+					mat_name = material_name;
+				}
+			}
+			else if(SUIsValid(parent_mat))
+			{
+				CSUString name;
+				SU_CALL(SUMaterialGetNameLegacyBehavior(parent_mat, name));
+				std::string material_name = name.utf8();
+				int material_index = g_material_container.FindIndexWithString(material_name);
+				if (material_index != -1)
+				{
+					MtlMap::iterator it = g_mtl_map.find(material_name);
+					if (it == g_mtl_map.end())
+					{
+						//Add new material
+						EH_Material eh_mat;
+						eh_mat.diffuse_color[0] = 1.0f;
+						eh_mat.diffuse_color[1] = 1.0f;
+						eh_mat.diffuse_color[2] = 1.0f;
+						eh_mat.diffuse_weight = 0.7f;
+						convert_to_eh_mtl(eh_mat, parent_mat, uv_scale);
 						g_mtl_map.insert(std::pair<std::string, EH_Material>(material_name, eh_mat));
 					}
 

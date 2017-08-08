@@ -24,4 +24,10 @@
 µÆ´ø ehlight_dd
 */
 
-bool import_mesh_from_skp(const char *file_name, const char *output_filename);
+enum ParseSkpType
+{
+	Envisioneer,
+	GuoJiaJia
+};
+
+bool import_mesh_from_skp(const char *file_name, const char *output_filename, ParseSkpType type);
