@@ -923,7 +923,7 @@ void set_outworld_day_exposure(EH_Context *ctx)
 
 	EH_Sky sky;
 	sky.enabled = true;
-	sky.hdri_name = "day.hdr";
+	sky.hdri_name = "outdoor.hdr";
 	sky.hdri_rotation = radians(0);
 	sky.intensity = 40.0f;
 	sky.enable_emit_GI = true;

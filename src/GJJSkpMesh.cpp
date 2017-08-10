@@ -460,7 +460,7 @@ static void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, V
 	eh_mesh_data.uvs = (EH_Vec2 *)&vertex->uvs[0];
 	eh_mesh_data.num_verts = vertex->vertices.size();
 	eh_mesh_data.num_faces = vertex->indices.size()/3;
-	//eh_mesh_data.normals = (EH_Vec *)&vertex->normals[0];
+	eh_mesh_data.normals = (EH_Vec *)&vertex->normals[0];
 
 	std::string export_mesh_name = poly_name + "_mesh";
 	EH_add_mesh(ctx, export_mesh_name.c_str(), &eh_mesh_data);
@@ -710,7 +710,7 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 					vertices[i].y = transform->values[1] * pos4[0] + transform->values[5] * pos4[1] + transform->values[9] * pos4[2] + transform->values[13] * pos4[3];
 					vertices[i].z = transform->values[2] * pos4[0] + transform->values[6] * pos4[1] + transform->values[10] * pos4[2] + transform->values[14] * pos4[3];					
 
-					/*eiMatrix ei_mat = ei_matrix(
+					eiMatrix ei_mat = ei_matrix(
 						transform->values[0], transform->values[4], transform->values[8], transform->values[12],
 						transform->values[1], transform->values[5], transform->values[9], transform->values[13],
 						transform->values[2], transform->values[6], transform->values[10], transform->values[14],
@@ -721,7 +721,14 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 					double nor4[3] = {su_normals[i].x, su_normals[i].y, su_normals[i].z};
 					su_normals[i].x = normal_mat.m[0][0] * nor4[0] + normal_mat.m[0][1] * nor4[1] + normal_mat.m[0][2] * nor4[2];
 					su_normals[i].y = normal_mat.m[1][0] * nor4[0] + normal_mat.m[1][1] * nor4[1] + normal_mat.m[1][2] * nor4[2];
-					su_normals[i].z = normal_mat.m[2][0] * nor4[0] + normal_mat.m[2][1] * nor4[1] + normal_mat.m[2][2] * nor4[2];*/
+					su_normals[i].z = normal_mat.m[2][0] * nor4[0] + normal_mat.m[2][1] * nor4[1] + normal_mat.m[2][2] * nor4[2];
+
+					if(determinant(normal_mat) < 0)
+					{
+						su_normals[i].x = -su_normals[i].x;
+						su_normals[i].y = -su_normals[i].y;
+						su_normals[i].z = -su_normals[i].z;
+					}
 				}
 			}
 
@@ -918,6 +925,7 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 				vert_indices.push_back(index);
 				pContainVertex->vertices.push_back(curr_vertex);
 				pContainVertex->uvs.push_back(curr_uv);
+				pContainVertex->normals.push_back(curr_normal);
 			}
 
 			/*const size_t num_indices = 3 * num_triangles;
