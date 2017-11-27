@@ -6,7 +6,7 @@ bool import_mesh_from_skp(const char *file_name, const char *output_filename, Pa
 	printf("parse %s \n", file_name);
 	EH_Context *pContext = EH_create();
 	EH_ExportOptions option;
-	option.base85_encoding = false;
+	option.base85_encoding = true;
 	option.left_handed = false;
 	printf("genreate file %s...\n", output_filename);
 	EH_begin_export(pContext, output_filename, &option);
