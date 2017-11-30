@@ -22,6 +22,6 @@
 
 int main() {
 	g_material_container.SetProjectName(SKP_PROJECTNAME);
-	import_mesh_from_skp(SKP_FILENAME);
+	import_mesh_from_skp(SKP_FILENAME, "test.ess");
 	return 0;
 }

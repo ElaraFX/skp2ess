@@ -11,11 +11,14 @@
 #include <SketchUpAPI/common.h>
 #include <SketchUpAPI/model/mesh_helper.h>
 #include <SketchUpAPI/model/scene.h>
+#include <SketchUpAPI/model/group.h>
 #include <SketchUpAPI/model/camera.h>
 #include <SketchUpAPI/model/component_definition.h>
+#include <SketchUpAPI/model/component_instance.h>
 #include <SketchUpAPI/model/shadow_info.h>
 #include <SketchUpAPI/unicodestring.h>
 #include <SketchUpAPI/model/typed_value.h>
+#include <SketchUpAPI/model/drawing_element.h>
 
 #include <unordered_map>
 #include <boost/unordered_map.hpp>
@@ -24,13 +27,13 @@
 #include <boost/math/special_functions/fpclassify.hpp>
 #include <limits>
 
-const std::string DEFAULT_MTL_NAME = "default_mtl";
-const int default_width = 1280;
-const int default_height = 720;
-const float REMOVE_VERTEX_EPS = 0.00000001;
-const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(70));
+static const std::string DEFAULT_MTL_NAME = "default_mtl";
+static const int default_width = 1280;
+static const int default_height = 720;
+static const float REMOVE_VERTEX_EPS = 0.00000001;
+static const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(70));
 
-std::string MAT_PATH;
+static std::string MAT_PATH;
 
 enum exposure_type
 {
@@ -38,7 +41,7 @@ enum exposure_type
 	e_exposure_night,
 	e_exposure_outworld_day
 };
-int g_exposure_type = e_exposure_night;
+static int g_exposure_type = e_exposure_day;
 
 struct Vertex
 {
@@ -110,38 +113,38 @@ struct KeyDataHasher
 typedef boost::unordered_map<int, VertexCacheData> VertexCacheDataMap;
 
 typedef std::unordered_map<std::string, Vertex*> MtlVertexMap;
-MtlVertexMap g_mtl_to_vertex_map;
+static MtlVertexMap g_mtl_to_vertex_map;
 typedef std::unordered_map<std::string, EH_Material> MtlMap;
-MtlMap g_mtl_map;
+static MtlMap g_mtl_map;
 typedef boost::unordered_map<VertexCacheData, VertexCacheDataMap, KeyDataHasher> VertexCacheMap;
 //VertexMap g_vertex_map;
 typedef std::unordered_map<std::string, VertexCacheMap*> MtlVertexCacheMap;
-MtlVertexCacheMap g_mtl_vertex_cache_map;
+static MtlVertexCacheMap g_mtl_vertex_cache_map;
 
-std::vector<std::string> mat_list;
+static std::vector<std::string> mat_list;
 
 typedef std::vector<EH_Light> LightsVector;
-LightsVector light_vector;
+static LightsVector light_vector;
 
-void export_mesh_mtl_from_entities(SUEntitiesRef entities);
-void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name);
-void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_scale);
-void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
-void export_light(EH_Context *ctx);
-void import_mat_list();
-void release_all_res();
-EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal);
-EH_Sun create_sun_dir_light(const eiVector &dir);
-void fix_inf_vertex(eiVector &v);
-void set_day_exposure(EH_Context *ctx);
-void set_night_exposure(EH_Context *ctx);
-void set_outworld_day_exposure(EH_Context *ctx);
+static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform, SUMaterialRef parent_mat);
+static void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name);
+static void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_scale);
+static void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
+static void export_light(EH_Context *ctx);
+static void import_mat_list();
+static void release_all_res();
+static EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal);
+static EH_Sun create_sun_dir_light(const eiVector &dir);
+static void fix_inf_vertex(eiVector &v);
+static void set_day_exposure(EH_Context *ctx);
+static void set_night_exposure(EH_Context *ctx);
+static void set_outworld_day_exposure(EH_Context *ctx);
 
 #ifdef _MSC_VER
-std::wstring to_utf16(std::string str);
+static std::wstring to_utf16(std::string str);
 #endif
 
-void import_mat_list()
+static void import_mat_list()
 {
 	std::locale global_loc = std::locale(); 
 	std::locale loc(global_loc, new boost::filesystem::detail::utf8_codecvt_facet); 
@@ -168,6 +171,93 @@ void import_mat_list()
 	else
 	{
 		printf("Invalid materials path: %s\n", MAT_PATH.c_str());
+	}
+}
+
+static void MatrixMutiply(SUTransformation &t1, SUTransformation &t2, SUTransformation &tout)
+{
+	for (int i = 0; i < 4; i++)	
+	{
+		for (int j = 0; j < 4; j++)
+		{
+			tout.values[i * 4 + j] = 0;	
+			for (int k = 0; k < 4; k++)
+				tout.values[i * 4 + j] += t1.values[i * 4 + k] * t2.values[k * 4 + j];
+		}
+	}
+}
+
+static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMaterialRef w_par_mat)
+{
+	//SUMaterialRef null_mat = SU_INVALID;
+	export_mesh_mtl_from_entities(entities, &t, w_par_mat);
+
+	size_t num_instances = 0;
+	SU_CALL(SUEntitiesGetNumInstances(entities, &num_instances));
+	//printf("Instances number: %d.\n", num_instances);
+	if (num_instances > 0) 
+	{
+		std::vector<SUComponentInstanceRef> instances(num_instances);
+		SU_CALL(SUEntitiesGetInstances(entities, num_instances,
+			&instances[0], &num_instances));
+		for (size_t c = 0; c < num_instances; c++) 
+		{
+			SUComponentInstanceRef instance = instances[c];
+			SUComponentDefinitionRef definition = SU_INVALID;
+			SU_CALL(SUComponentInstanceGetDefinition(instance, &definition));
+
+			SUTransformation transform, transform_mul;
+			SU_CALL(SUComponentInstanceGetTransform(instance, &transform));
+			MatrixMutiply(transform, t, transform_mul);
+
+			SUEntitiesRef c_entities;
+			SUComponentDefinitionGetEntities(definition, &c_entities);
+
+			SUMaterialRef material = SU_INVALID;
+			SUDrawingElementGetMaterial(SUComponentInstanceToDrawingElement(instance), &material);
+			export_mesh_mtl_from_entities(c_entities, &transform_mul, material);
+			writeEntities(c_entities, transform_mul, material);
+		}
+	}
+
+	// Get Groups
+	size_t num_groups = 0;
+	SUEntitiesGetNumGroups(entities, &num_groups);
+	//printf("Groups number: %d.\n", num_groups);
+	if (num_groups > 0) 
+	{
+		std::vector<SUGroupRef> groups(num_groups);
+		SU_CALL(SUEntitiesGetGroups(entities, num_groups, &groups[0], &num_groups));
+		for (size_t group_i = 0; group_i < num_groups; group_i++) 
+		{
+			for(MtlVertexCacheMap::iterator iter = g_mtl_vertex_cache_map.begin(); 
+				iter != g_mtl_vertex_cache_map.end(); ++iter)
+			{
+				delete iter->second;
+				iter->second = NULL;
+			}
+
+			g_mtl_vertex_cache_map.clear();
+			//printf("export curr group id = %d\n", group_i);
+			SUGroupRef group = groups[group_i];
+			SUComponentDefinitionRef group_component = SU_INVALID;
+			SUEntitiesRef group_entities = SU_INVALID;
+			SU_CALL(SUGroupGetEntities(group, &group_entities));
+
+			// Write transformation
+			SUTransformation transform, transform_mul;
+			SU_CALL(SUGroupGetTransform(group, &transform));
+			MatrixMutiply(transform, t, transform_mul);
+
+			SUEntitiesRef c_entities;
+			SUGroupGetEntities(group, &c_entities);
+
+			SUMaterialRef material = SU_INVALID;
+			SUDrawingElementGetMaterial(SUGroupToDrawingElement(group), &material);
+
+			export_mesh_mtl_from_entities(c_entities, &transform_mul, material);
+			writeEntities(c_entities, transform_mul, material);
+		}
 	}
 }
 
@@ -221,14 +311,64 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		printf("This scene has no active camera!\n");
 	}
 
+	//Get shadow info
+	SUShadowInfoRef shadow_info;
+	SUResult get_sun_dir_ret;
+	SUTypedValueRef dir_val;
+	dir_val.ptr = NULL;
+	SUResult create_val_ret = SUTypedValueCreate(&dir_val);
+	static char *shadow_key = "SunDirection";
+	if(SUModelGetShadowInfo(model, &shadow_info) == SU_ERROR_NONE)
+	{
+		size_t shadow_key_count = 0;
+		SUShadowInfoGetNumKeys(shadow_info, &shadow_key_count);
+		if(shadow_key_count > 0)
+		{
+			get_sun_dir_ret = SUShadowInfoGetValue(shadow_info, "SunDirection", &dir_val);
+		}
+
+	}
+
+	if(get_sun_dir_ret == SU_ERROR_NONE)
+	{		
+		double vector3d_val[3];
+		SUTypedValueGetVector3d(dir_val, vector3d_val);
+		printf("x = %f, y = %f, z = %f\n", vector3d_val[0], vector3d_val[1], vector3d_val[2]);
+
+		EH_Sun sun;
+		sun.dir[0] = std::acos(vector3d_val[2]);
+		float phi = std::atan(vector3d_val[1]/vector3d_val[0]);
+		if(vector3d_val[0] > 0.0f)
+		{
+			phi = phi;
+		}
+		else
+		{
+			phi = phi + EI_PI;
+		}
+
+		sun.dir[1] = phi; 
+		//printf("theta = %f, phi = %f\n", sun.dir[0] * (180.0/EI_PI), sun.dir[1] * (180.0/EI_PI));
+		float color[3] = {0.94902, 0.776471, 0.619608};
+		memcpy(sun.color, color, sizeof(color));
+		sun.intensity = 30.4;
+		sun.soft_shadow = 1.0f;
+		EH_set_sun(ctx, &sun);
+	}
+	else
+	{
+		printf("Get sun direction error ! error code = %d\n", get_sun_dir_ret);
+	}
+	SUTypedValueRelease(&dir_val);
+
 	// Get all materials
-	GetAllMaterials(model);
+	GetAllMaterials(model);	
 
 	// Get all the faces from the entities object
-	export_mesh_mtl_from_entities(entities);
+	//export_mesh_mtl_from_entities(entities);
 
 	// Get external component entities
-	size_t component_num;
+	/*size_t component_num;
 	SUModelGetNumComponentDefinitions(model, &component_num);
 	if(component_num > 0)
 	{
@@ -246,7 +386,14 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 
 			export_mesh_mtl_from_entities(c_entities);
 		}
-	}
+	}*/
+
+	SUTransformation t;
+	memset(t.values, 0, sizeof(double) * 16);
+	t.values[0] = t.values[5] = t.values[10] = t.values[15] = 1;
+
+	SUMaterialRef null_mat = SU_INVALID;
+	writeEntities(entities, t, null_mat);
 
 	int poly_index = 0;
 	for (MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin();
@@ -266,20 +413,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	export_light(ctx);
 
 	//add exposure	
-	switch (g_exposure_type)
-	{	
-	case e_exposure_day:
-		set_day_exposure(ctx);
-		break;
-	case e_exposure_night:
-		set_night_exposure(ctx);
-		break;
-	case e_exposure_outworld_day:
-		set_outworld_day_exposure(ctx);
-		break;
-	default:
-		break;
-	}
+	set_day_exposure(ctx);	
 
 	// Must release the model or there will be memory leaks
 	SUModelRelease(&model);
@@ -292,11 +426,11 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	return true;
 }
 
-void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name)
+static void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name)
 {
 	//vertex->normals.reserve(vertex->vertices.size());
 	//Generate normals	
-	eiVector zero_val =  ei_vector(0.0f, 0.0f, 0.0f);
+	/*eiVector zero_val =  ei_vector(0.0f, 0.0f, 0.0f);
 	vertex->normals.resize(vertex->vertices.size(), zero_val);
 	for(std::vector<uint_t>::iterator it = vertex->indices.begin(); it != vertex->indices.end(); it += 3)
 	{
@@ -315,44 +449,9 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 	for(int i = 0; i < vertex->normals.size(); ++i)
 	{
 		vertex->normals[i] = normalize(vertex->normals[i]);
-	}
+	}*/
 
 	EH_Material mat = g_mtl_map[mtl_name];
-	//create camera
-	if (mat.diffuse_tex.filename)
-	{		
-		std::string tex_filename = mat.diffuse_tex.filename;
-		if (tex_filename.find("camera_instance") != std::string::npos)
-		{			
-			eiVector normal = ei_vector(-vertex->normals[0].x, -vertex->normals[0].y, -vertex->normals[0].z);
-			eiVector pos = vertex->vertices[0];
-			EH_Camera cam = create_camera_from_pos_normal(pos, normal);
-			EH_set_camera(ctx, &cam);
-
-			printf("create camera !!!\n");
-			return;
-		}
-		else if (tex_filename.find("out_sun_direction") != std::string::npos)
-		{
-			printf("create out world exposure.\n");
-			g_exposure_type = e_exposure_outworld_day;
-			eiVector sun_dir = ei_vector(-vertex->normals[0].x, -vertex->normals[0].y, -vertex->normals[0].z);
-			EH_Sun eh_sun = create_sun_dir_light(sun_dir);
-			eh_sun.intensity = 100.0f;
-			EH_set_sun(ctx, &eh_sun);
-			return;
-		}
-		else if (tex_filename.find("sun_direction") != std::string::npos)
-		{
-			g_exposure_type = e_exposure_day;
-			eiVector sun_dir = ei_vector(-vertex->normals[0].x, -vertex->normals[0].y, -vertex->normals[0].z);
-			EH_Sun eh_sun = create_sun_dir_light(sun_dir);
-			EH_set_sun(ctx, &eh_sun);
-
-			printf("create sun dir light !\n");
-			return;
-		}
-	}
 
 	//Fill with data in EH_Mesh
 	EH_Mesh eh_mesh_data;
@@ -368,20 +467,20 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 		
 	bool find_map_material = false;
 	std::string import_ess_filename;
-	if (mat.diffuse_tex.filename)
+	//if (mat.diffuse_tex.filename)	
+	//{
+		//std::string tex_filename = mat.diffuse_tex.filename;
+	for(int i = 0; i < mat_list.size(); ++i)
 	{
-		std::string tex_filename = mat.diffuse_tex.filename;
-		for(int i = 0; i < mat_list.size(); ++i)
+		if (mtl_name.find(mat_list[i]) != std::string::npos)
 		{
-			if (tex_filename.find(mat_list[i]) != std::string::npos)
-			{
-				find_map_material = true;
-				printf("tex = %s\n", tex_filename.c_str());
-				import_ess_filename = MAT_PATH + "/" + mat_list[i] + ".ess";
-				break;
-			}
+			find_map_material = true;
+			printf("mtl_name = %s\n", mtl_name.c_str());
+			import_ess_filename = MAT_PATH + "/" + mat_list[i] + ".ess";
+			break;
 		}
 	}
+	//}
 
 	if (find_map_material)
 	{
@@ -405,7 +504,7 @@ void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *
 	EH_add_mesh_instance(ctx, export_inst_name.c_str(), &inst);
 }
 
-void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_scale)
+static void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_scale)
 {
 	// Get name
 	CSUString name;
@@ -418,9 +517,15 @@ void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_s
 	{
 		eh_mtl.transp_weight = 1.0 - mtl_info.alpha_;
 	}
+	if (mtl_info.has_color_)
+	{
+		eh_mtl.diffuse_color[0] = float(mtl_info.color_.red) / 255;
+		eh_mtl.diffuse_color[1] = float(mtl_info.color_.green) / 255;
+		eh_mtl.diffuse_color[2] = float(mtl_info.color_.blue) / 255;
+	}
 }
 
-void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
+static void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
 {
 	SUPoint3D postion, target;
 	SUVector3D up;
@@ -480,7 +585,7 @@ void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
 	memcpy(cam.view_to_world, &ei_tran.m[0], sizeof(cam.view_to_world));
 }
 
-void export_mesh_mtl_from_entities(SUEntitiesRef entities)
+static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform, SUMaterialRef parent_mat)
 {
 	size_t faceCount = 0;	
 	const size_t MAX_NAME_LENGTH = 128;
@@ -538,7 +643,35 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 					{
 						//Add new material
 						EH_Material eh_mat;
+						eh_mat.diffuse_color[0] = 1.0f;
+						eh_mat.diffuse_color[1] = 1.0f;
+						eh_mat.diffuse_color[2] = 1.0f;
+						eh_mat.diffuse_weight = 0.7f;
 						convert_to_eh_mtl(eh_mat, material, uv_scale);
+						g_mtl_map.insert(std::pair<std::string, EH_Material>(material_name, eh_mat));
+					}
+
+					mat_name = material_name;
+				}
+			}
+			else if(SUIsValid(parent_mat))
+			{
+				CSUString name;
+				SU_CALL(SUMaterialGetNameLegacyBehavior(parent_mat, name));
+				std::string material_name = name.utf8();
+				int material_index = g_material_container.FindIndexWithString(material_name);
+				if (material_index != -1)
+				{
+					MtlMap::iterator it = g_mtl_map.find(material_name);
+					if (it == g_mtl_map.end())
+					{
+						//Add new material
+						EH_Material eh_mat;
+						eh_mat.diffuse_color[0] = 1.0f;
+						eh_mat.diffuse_color[1] = 1.0f;
+						eh_mat.diffuse_color[2] = 1.0f;
+						eh_mat.diffuse_weight = 0.7f;
+						convert_to_eh_mtl(eh_mat, parent_mat, uv_scale);
 						g_mtl_map.insert(std::pair<std::string, EH_Material>(material_name, eh_mat));
 					}
 
@@ -552,6 +685,7 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 			if (num_vertices == 0)
 			{
 				printf("number of vertices is 0!\n");
+				continue;
 			}
 			std::vector<SUPoint3D> vertices(num_vertices);
 			SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);
@@ -560,6 +694,43 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 			std::vector<SUPoint3D> front_stq(num_vertices);
 			size_t count = 0;
 			SUMeshHelperGetFrontSTQCoords(mesh_ref, num_vertices, &front_stq[0], &count);
+
+			//Get Normals
+			std::vector<SUVector3D> su_normals(num_vertices);
+			size_t r_normal_count = 0;
+			SUMeshHelperGetNormals(mesh_ref, num_vertices, &su_normals[0], &r_normal_count);
+
+			// Transform all vertices
+			if (transform != NULL)
+			{			
+				for (int i = 0; i < num_vertices; i++)
+				{
+					double pos4[4] = {vertices[i].x, vertices[i].y, vertices[i].z, 1};
+					vertices[i].x = transform->values[0] * pos4[0] + transform->values[4] * pos4[1] + transform->values[8] * pos4[2] + transform->values[12] * pos4[3];
+					vertices[i].y = transform->values[1] * pos4[0] + transform->values[5] * pos4[1] + transform->values[9] * pos4[2] + transform->values[13] * pos4[3];
+					vertices[i].z = transform->values[2] * pos4[0] + transform->values[6] * pos4[1] + transform->values[10] * pos4[2] + transform->values[14] * pos4[3];					
+
+					eiMatrix ei_mat = ei_matrix(
+						transform->values[0], transform->values[4], transform->values[8], transform->values[12],
+						transform->values[1], transform->values[5], transform->values[9], transform->values[13],
+						transform->values[2], transform->values[6], transform->values[10], transform->values[14],
+						transform->values[3], transform->values[7], transform->values[11], transform->values[15]
+					);
+					eiMatrix normal_mat = inverse(transpose(ei_mat));
+
+					double nor4[3] = {su_normals[i].x, su_normals[i].y, su_normals[i].z};
+					su_normals[i].x = normal_mat.m[0][0] * nor4[0] + normal_mat.m[0][1] * nor4[1] + normal_mat.m[0][2] * nor4[2];
+					su_normals[i].y = normal_mat.m[1][0] * nor4[0] + normal_mat.m[1][1] * nor4[1] + normal_mat.m[1][2] * nor4[2];
+					su_normals[i].z = normal_mat.m[2][0] * nor4[0] + normal_mat.m[2][1] * nor4[1] + normal_mat.m[2][2] * nor4[2];
+
+					if(determinant(normal_mat) < 0)
+					{
+						su_normals[i].x = -su_normals[i].x;
+						su_normals[i].y = -su_normals[i].y;
+						su_normals[i].z = -su_normals[i].z;
+					}
+				}
+			}
 
 			//std::vector<eiVector> convert_vertices(num_vertices);
 			Vertex *pContainVertex = NULL;
@@ -598,142 +769,163 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 			//vert_indices.reserve(num_triangles * 3);
 			//pContainVertex->vertices.reserve(num_vertices);
 			//pContainVertex->uvs.reserve(num_vertices);
-			for (int i = 0; i < num_vertices; i += 3)
-			{
-				if(i + 2 >= num_vertices)
-				{
-					for(int oi = i; oi < num_vertices; ++oi)
-					{
-						eiVector curr_vertex = ei_vector(vertices[oi].x, vertices[oi].y, vertices[oi].z);
-						eiVector2 curr_uv = ei_vector2(front_stq[oi].x * uv_scale.u, front_stq[oi].y * uv_scale.v);
-						VertexCacheData v_data;
-						v_data.vs = curr_vertex;
-						v_data.uv = curr_uv;
-						size_t index = pContainVertex->vertices.size();
-						VertexCacheData v_cache_data;
-						v_cache_data.vs = curr_vertex;
-						v_cache_data.uv = curr_uv;
+			//for (int i = 0; i < num_vertices; i += 3)
+			//{
+			//	if(i + 2 >= num_vertices)
+			//	{
+			//		for(int oi = i; oi < num_vertices; ++oi)
+			//		{
+			//			eiVector curr_vertex = ei_vector(vertices[oi].x, vertices[oi].y, vertices[oi].z);
+			//			eiVector2 curr_uv = ei_vector2(front_stq[oi].x * uv_scale.u, front_stq[oi].y * uv_scale.v);
+			//			VertexCacheData v_data;
+			//			v_data.vs = curr_vertex;
+			//			v_data.uv = curr_uv;
+			//			size_t index = pContainVertex->vertices.size();
+			//			VertexCacheData v_cache_data;
+			//			v_cache_data.vs = curr_vertex;
+			//			v_cache_data.uv = curr_uv;
 
-						VertexCacheDataMap::value_type item(index, v_data);
-						(*p_vertex_cache_map)[v_data].insert(item);
+			//			VertexCacheDataMap::value_type item(index, v_data);
+			//			(*p_vertex_cache_map)[v_data].insert(item);
 
-						vert_indices.push_back(index);
-						pContainVertex->vertices.push_back(curr_vertex);
-						pContainVertex->uvs.push_back(curr_uv);
-					}
-					break;
-				}
+			//			vert_indices.push_back(index);
+			//			pContainVertex->vertices.push_back(curr_vertex);
+			//			pContainVertex->uvs.push_back(curr_uv);
+			//		}
+			//		break;
+			//	}
 
-				//Whether vertice is redundancy
-				eiVector p0 = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
-				fix_inf_vertex(p0);
-				eiVector p1 = ei_vector(vertices[i+1].x, vertices[i+1].y, vertices[i+1].z);
-				fix_inf_vertex(p1);
-				eiVector p2 = ei_vector(vertices[i+2].x, vertices[i+2].y, vertices[i+2].z);
-				fix_inf_vertex(p2);
-				eiVector a = normalize(p2 - p1);
-				eiVector b = normalize(p1 - p0);
-				eiVector curr_normal = normalize(cross(b, a));
+			//	//Whether vertice is redundancy
+			//	eiVector p0 = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
+			//	fix_inf_vertex(p0);
+			//	eiVector p1 = ei_vector(vertices[i+1].x, vertices[i+1].y, vertices[i+1].z);
+			//	fix_inf_vertex(p1);
+			//	eiVector p2 = ei_vector(vertices[i+2].x, vertices[i+2].y, vertices[i+2].z);
+			//	fix_inf_vertex(p2);
+			//	eiVector a = normalize(p2 - p1);
+			//	eiVector b = normalize(p1 - p0);
+			//	eiVector curr_normal = normalize(cross(b, a));
 
 				//eiVector face_vertices[3] = {p0, p1, p2};
 
-				for (int j = 0; j < 3; ++j)
-				{
-					eiVector curr_vertex = ei_vector(vertices[i+j].x, vertices[i+j].y, vertices[i+j].z);
-					fix_inf_vertex(curr_vertex);
-					eiVector2 curr_uv = ei_vector2(front_stq[i+j].x * uv_scale.u, front_stq[i+j].y * uv_scale.v);
-					bool is_redundancy = false;
+			//	for (int j = 0; j < 3; ++j)
+			//	{
+			//		eiVector curr_vertex = ei_vector(vertices[i+j].x, vertices[i+j].y, vertices[i+j].z);
+			//		fix_inf_vertex(curr_vertex);
+			//		eiVector2 curr_uv = ei_vector2(front_stq[i+j].x * uv_scale.u, front_stq[i+j].y * uv_scale.v);
+			//		curr_normal = normalize(ei_vector(su_normals[i].x, su_normals[i].y, su_normals[i].z)); //skp自带的法线数据
+			//		bool is_redundancy = false;
 
-					//int key = (int)(vertices[i+j].x * vertices[i+j].y * vertices[i+j].z);
-					VertexCacheData v_data;
-					v_data.vs = curr_vertex;
-					v_data.uv = curr_uv;
-					if (p_vertex_cache_map->find(v_data) != p_vertex_cache_map->end())
-					{
-						VertexCacheDataMap &same_pos_vertices = (*p_vertex_cache_map)[v_data];
-						for(VertexCacheDataMap::iterator spos_i = same_pos_vertices.begin();
-							spos_i != same_pos_vertices.end(); ++spos_i)
-						{
-							size_t compare_index = spos_i->first;
-							const eiVector &compare_vert = pContainVertex->vertices[compare_index];
-							const eiVector2 &compare_uv = pContainVertex->uvs[compare_index];
-							//size_t combine_vertice_start_index = 0;
-							//size_t combine_vertice_start_index1 = 0;
-							//size_t combine_vertice_start_index2 = 0;
-							std::vector<TriangleIndex> triangle_num;
-				
-							size_t index = compare_index;								
-							if(pContainVertex->indices.size() >= 3)
-							{
-								for(int vi = pContainVertex->indices.size() - 1; vi >= 0; --vi)
-								{
-									if(pContainVertex->indices[vi] == index)
-									{
-										float offset = vi % 3;
-										size_t st_id = vi - offset;
-										triangle_num.push_back(TriangleIndex(
-											pContainVertex->indices[st_id], 
-											pContainVertex->indices[st_id + 1], 
-											pContainVertex->indices[st_id + 2]));
-											
-									}
-								}
-							}
-								
-							/*if(triangle_num.size()>0)
-							{
-								printf("triangle_num = %d\n", triangle_num.size());
-							}*/
-							for(int ti = 0; ti < triangle_num.size(); ++ti)
-							{
-								p0 = ei_vector(
-									pContainVertex->vertices[triangle_num[ti].i].x, 
-									pContainVertex->vertices[triangle_num[ti].i].y, 
-									pContainVertex->vertices[triangle_num[ti].i].z);
-								p1 = ei_vector(
-									pContainVertex->vertices[triangle_num[ti].j].x, 
-									pContainVertex->vertices[triangle_num[ti].j].y, 
-									pContainVertex->vertices[triangle_num[ti].j].z);
-								p2 = ei_vector(
-									pContainVertex->vertices[triangle_num[ti].k].x, 
-									pContainVertex->vertices[triangle_num[ti].k].y, 
-									pContainVertex->vertices[triangle_num[ti].k].z);
-								a = normalize(p2 - p1);
-								b = normalize(p1 - p0);
-								eiVector combine_vertice_normal = normalize(cross(b, a));
+			//		//int key = (int)(vertices[i+j].x * vertices[i+j].y * vertices[i+j].z);
+			//		VertexCacheData v_data;
+			//		v_data.vs = curr_vertex;
+			//		v_data.uv = curr_uv;
+			//		if (p_vertex_cache_map->find(v_data) != p_vertex_cache_map->end())
+			//		{
+			//			VertexCacheDataMap &same_pos_vertices = (*p_vertex_cache_map)[v_data];
+			//			for(VertexCacheDataMap::iterator spos_i = same_pos_vertices.begin();
+			//				spos_i != same_pos_vertices.end(); ++spos_i)
+			//			{
+			//				size_t compare_index = spos_i->first;
+			//				const eiVector &compare_vert = pContainVertex->vertices[compare_index];
+			//				const eiVector2 &compare_uv = pContainVertex->uvs[compare_index];
+			//				//size_t combine_vertice_start_index = 0;
+			//				//size_t combine_vertice_start_index1 = 0;
+			//				//size_t combine_vertice_start_index2 = 0;
+			//				std::vector<TriangleIndex> triangle_num;
+			//	
+			//				size_t index = compare_index;								
+			//				if(pContainVertex->indices.size() >= 3)
+			//				{
+			//					for(int vi = pContainVertex->indices.size() - 1; vi >= 0; --vi)
+			//					{
+			//						if(pContainVertex->indices[vi] == index)
+			//						{
+			//							float offset = vi % 3;
+			//							size_t st_id = vi - offset;
+			//							triangle_num.push_back(TriangleIndex(
+			//								pContainVertex->indices[st_id], 
+			//								pContainVertex->indices[st_id + 1], 
+			//								pContainVertex->indices[st_id + 2]));
+			//								
+			//						}
+			//					}
+			//				}
+			//					
+			//				/*if(triangle_num.size()>0)
+			//				{
+			//					printf("triangle_num = %d\n", triangle_num.size());
+			//				}*/
+			//				for(int ti = 0; ti < triangle_num.size(); ++ti)
+			//				{
+			//					p0 = ei_vector(
+			//						pContainVertex->vertices[triangle_num[ti].i].x, 
+			//						pContainVertex->vertices[triangle_num[ti].i].y, 
+			//						pContainVertex->vertices[triangle_num[ti].i].z);
+			//					p1 = ei_vector(
+			//						pContainVertex->vertices[triangle_num[ti].j].x, 
+			//						pContainVertex->vertices[triangle_num[ti].j].y, 
+			//						pContainVertex->vertices[triangle_num[ti].j].z);
+			//					p2 = ei_vector(
+			//						pContainVertex->vertices[triangle_num[ti].k].x, 
+			//						pContainVertex->vertices[triangle_num[ti].k].y, 
+			//						pContainVertex->vertices[triangle_num[ti].k].z);
+			//					a = normalize(p2 - p1);
+			//					b = normalize(p1 - p0);
+			//					eiVector combine_vertice_normal = normalize(cross(b, a));
 
-								if (dot(curr_normal, combine_vertice_normal) > COMBINE_NORMAL_THRESHOLD)
-								{
-									is_redundancy = true;
-									vert_indices.push_back(compare_index);
-									break;
-								}
-							}
-						}
-					}
-					else
-					{
-						VertexCacheMap::value_type item(v_data, VertexCacheDataMap());
-						p_vertex_cache_map->insert(item);
-					}
+			//					if (dot(curr_normal, combine_vertice_normal) > COMBINE_NORMAL_THRESHOLD)
+			//					{
+			//						is_redundancy = true;
+			//						vert_indices.push_back(compare_index);
+			//						break;
+			//					}
+			//				}
+			//			}
+			//		}
+			//		else
+			//		{
+			//			VertexCacheMap::value_type item(v_data, VertexCacheDataMap());
+			//			p_vertex_cache_map->insert(item);
+			//		}
 
 
-					if(is_redundancy == false)
-					{
-						size_t index = pContainVertex->vertices.size();
-						VertexCacheData v_cache_data;
-						v_cache_data.vs = curr_vertex;
-						v_cache_data.uv = curr_uv;
-						
-						VertexCacheDataMap::value_type item(index, v_data);
-						(*p_vertex_cache_map)[v_data].insert(item);
+			//		if(is_redundancy == false)
+			//		{
+			//			size_t index = pContainVertex->vertices.size();
+			//			VertexCacheData v_cache_data;
+			//			v_cache_data.vs = curr_vertex;
+			//			v_cache_data.uv = curr_uv;
+			//			
+			//			VertexCacheDataMap::value_type item(index, v_data);
+			//			(*p_vertex_cache_map)[v_data].insert(item);
 
-						vert_indices.push_back(index);
-						pContainVertex->vertices.push_back(curr_vertex);
-						pContainVertex->uvs.push_back(curr_uv);
-					}
-				}
-								
+			//			vert_indices.push_back(index);
+			//			pContainVertex->vertices.push_back(curr_vertex);
+			//			pContainVertex->uvs.push_back(curr_uv);
+			//			pContainVertex->normals.push_back(curr_normal);
+			//		}
+			//	}
+			//					
+			//}
+			for (int i = 0; i < num_vertices; ++i)
+			{
+				eiVector curr_vertex = ei_vector(vertices[i].x, vertices[i].y, vertices[i].z);
+				//fix_inf_vertex(curr_vertex);
+				eiVector2 curr_uv = ei_vector2(front_stq[i].x * uv_scale.u, front_stq[i].y * uv_scale.v);
+				eiVector curr_normal = normalize(ei_vector(su_normals[i].x, su_normals[i].y, su_normals[i].z));
+				size_t index = pContainVertex->vertices.size();
+				/*VertexCacheData v_cache_data;
+				v_cache_data.vs = curr_vertex;
+				v_cache_data.uv = curr_uv;*/
+
+				//VertexCacheDataMap::value_type item(index, v_data);
+				//(*p_vertex_cache_map)[v_data].insert(item);
+
+				vert_indices.push_back(index);
+				pContainVertex->vertices.push_back(curr_vertex);
+				pContainVertex->uvs.push_back(curr_uv);
+				pContainVertex->normals.push_back(curr_normal);
 			}
 
 			/*const size_t num_indices = 3 * num_triangles;
@@ -748,7 +940,7 @@ void export_mesh_mtl_from_entities(SUEntitiesRef entities)
 	}
 }
 
-void export_light(EH_Context *ctx)
+static void export_light(EH_Context *ctx)
 {
 	char light_inst_name[EI_MAX_FILE_NAME_LEN];
 	for(int i = 0; i < light_vector.size(); ++i)
@@ -761,7 +953,7 @@ void export_light(EH_Context *ctx)
 }
 
 #ifdef _MSC_VER
-std::wstring to_utf16(std::string str)
+static std::wstring to_utf16(std::string str)
 {
 	std::wstring ret;
 	int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.length(), NULL, 0);
@@ -774,7 +966,7 @@ std::wstring to_utf16(std::string str)
 }
 #endif
 
-void release_all_res()
+static void release_all_res()
 {
 	for(MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin(); 
 		iter != g_mtl_to_vertex_map.end(); ++iter)
@@ -798,7 +990,7 @@ void release_all_res()
 	g_exposure_type = e_exposure_night;
 }
 
-EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal)
+static EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal)
 {
 	EH_Camera cam;
 	eiVector zaxis = normal;
@@ -829,7 +1021,7 @@ EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &nor
 	return cam;
 }
 
-EH_Sun create_sun_dir_light(const eiVector &dir)
+static EH_Sun create_sun_dir_light(const eiVector &dir)
 {
 	EH_Sun sun;
 	sun.dir[0] = std::acos(dir.z);
@@ -853,7 +1045,7 @@ EH_Sun create_sun_dir_light(const eiVector &dir)
 	return sun;
 }
 
-void fix_inf_vertex(eiVector &v)
+static void fix_inf_vertex(eiVector &v)
 {
 	if(boost::math::isinf(v.x))
 	{
@@ -869,7 +1061,7 @@ void fix_inf_vertex(eiVector &v)
 	}
 }
 
-void set_day_exposure(EH_Context *ctx)
+static void set_day_exposure(EH_Context *ctx)
 {
 	EH_Exposure day_expo;
 	day_expo.exposure_value = 0.5f;
@@ -885,7 +1077,7 @@ void set_day_exposure(EH_Context *ctx)
 	EH_set_sky(ctx, &sky);
 }
 
-void set_night_exposure(EH_Context *ctx)
+static void set_night_exposure(EH_Context *ctx)
 {
 	EH_Exposure night_expo;
 	night_expo.exposure_value = -0.5f;
@@ -909,7 +1101,7 @@ void set_night_exposure(EH_Context *ctx)
 	EH_set_sky(ctx, &sky);
 }
 
-void set_outworld_day_exposure(EH_Context *ctx)
+static void set_outworld_day_exposure(EH_Context *ctx)
 {
 	EH_Exposure day_expo;
 	day_expo.exposure_value = 3.0f;
@@ -923,7 +1115,7 @@ void set_outworld_day_exposure(EH_Context *ctx)
 
 	EH_Sky sky;
 	sky.enabled = true;
-	sky.hdri_name = "outdoor.hdr";
+	sky.hdri_name = "day.hdr";
 	sky.hdri_rotation = radians(0);
 	sky.intensity = 40.0f;
 	sky.enable_emit_GI = true;

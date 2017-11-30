@@ -1,0 +1,78 @@
+	int "version" 2
+	color "diffuse_color" 1.0 1.0 1.0
+	scalar "diffuse_color_alpha" 1.0
+	color "diffuse_color_base" 1.0 1.0 1.0
+	scalar "diffuse_weight" 0.0
+	color "specular_color" 1.0 1.0 1.0
+	scalar "specular_color_alpha" 1.0
+	color "specular_color_base" 1.0 1.0 1.0
+	scalar "specular_weight" 1.0
+	scalar "roughness" 0.0
+	scalar "backlighting_weight" 0.0
+	int "specular_mode" 1
+	scalar "glossiness" 70.0
+	color "reflection_color" 1.0 1.0 1.0
+	scalar "reflection_color_alpha" 1.0
+	color "reflection_color_base" 1.0 1.0 1.0
+	scalar "reflection_weight" 0.0
+	color "refraction_color" 1.0 1.0 1.0
+	scalar "refraction_color_alpha" 1.0
+	color "refraction_color_base" 1.0 1.0 1.0
+	scalar "refraction_weight" 0.0
+	scalar "refraction_glossiness" 100.0
+	scalar "anisotropy" 1.0
+	scalar "rotation" 0.0
+	scalar "ior" 1.5
+	scalar "transparency_weight" 0.0
+	color "transparency_color" 1.0 1.0 1.0
+	scalar "transparency_color_alpha" 1.0
+	color "transparency_color_base" 1.0 1.0 1.0
+	color "sss_color" 1.0 1.0 1.0
+	scalar "sss_color_alpha" 1.0
+	color "sss_color_base" 1.0 1.0 1.0
+	scalar "sss_weight" 0.0
+	scalar "sss_scale" 1.0
+	color "sss_scale_color" 1.0 1.0 1.0
+	scalar "sss_scale_color_alpha" 1.0
+	color "sss_scale_color_base" 1.0 1.0 1.0
+	scalar "displace_weight" 0.0
+	scalar "bump_weight" 0.0
+	scalar "normal_weight" 0.0
+	scalar "emission_weight" 0.0
+	color "emission_color" 1.0 1.0 1.0
+	scalar "emission_color_alpha" 1.0
+	color "emission_color_base" 1.0 1.0 1.0
+	scalar "fresnel_ior_glossy" 10.0
+	bool "refraction_invert_weight" off
+	bool "transparency_invert_weight" off
+	int "anisotropy_map_isnull" 1
+	int "rotation_map_isnull" 1
+	int "ior_map_isnull" 1
+	int "diffuse_color_map_isnull" 1
+	int "diffuse_weight_map_isnull" 1
+	int "specular_color_map_isnull" 1
+	int "specular_weight_map_isnull" 1
+	int "roughness_map_isnull" 1
+	int "backlighting_weight_map_isnull" 1
+	int "glossiness_map_isnull" 1
+	int "reflection_color_map_isnull" 1
+	int "reflection_weight_map_isnull" 1
+	int "refraction_color_map_isnull" 1
+	int "refraction_weight_map_isnull" 1
+	int "refraction_glossiness_map_isnull" 1
+	int "sss_color_map_isnull" 1
+	int "sss_weight_map_isnull" 1
+	int "sss_scale_map_isnull" 1
+	int "sss_scale_color_map_isnull" 1
+	int "displace_map_isnull" 1
+	int "bump_map_isnull" 1
+	int "normal_map_isnull" 1
+	int "emission_weight_map_isnull" 1
+	int "emission_color_map_isnull" 1
+	scalar "fresnel_ior" 1.5
+	int "fresnel_ior_map_isnull" 1
+	int "transparency_weight_map_isnull" 1
+	int "transparency_color_map_isnull" 1
+	int "fresnel_ior_glossy_map_isnull" 1
+	scalar "normal_weight" 0.0
+	scalar "bump_weight" 0.0

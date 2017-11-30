@@ -1,7 +1,7 @@
 #include "ImportSketchup.h"
 #include <ei_timer.h>
 
-bool import_mesh_from_skp(const char *file_name, const char *output_filename, ParseSkpType type)
+bool import_mesh_from_skp(const char *file_name, const char *output_filename)
 {
 	printf("parse %s \n", file_name);
 	EH_Context *pContext = EH_create();
@@ -44,18 +44,7 @@ bool import_mesh_from_skp(const char *file_name, const char *output_filename, Pa
 	eiTimer export_ess_timer;
 	ei_timer_start(&export_ess_timer);
 
-	switch(type)
-	{
-	case Envisioneer:
-		skp_to_ess(file_name, pContext);
-		break;
-	case GuoJiaJia:
-		gjj_skp_to_ess(file_name, pContext);
-		break;
-	default:
-		gjj_skp_to_ess(file_name, pContext);
-		break;
-	}
+	skp_to_ess(file_name, pContext);
 
 	//skp_to_ess(file_name, pContext);
 	//gjj_skp_to_ess(file_name, pContext);

@@ -1,0 +1,50 @@
+	int "version" 2
+	color "diffuse_color" 1.0 1.0 1.0
+	scalar "diffuse_color_alpha" 1.0
+	color "diffuse_color_base" 1.0 1.0 1.0
+	scalar "diffuse_weight" 0.0
+	color "specular_color" 1.0 1.0 1.0
+	scalar "specular_color_alpha" 1.0
+	color "specular_color_base" 1.0 1.0 1.0
+	scalar "specular_weight" 0.0
+	scalar "roughness" 0.0
+	scalar "backlighting_weight" 0.0
+	int "specular_mode" 0
+	scalar "glossiness" 90.0
+	color "reflection_color" 1.0 1.0 1.0
+	scalar "reflection_color_alpha" 1.0
+	color "reflection_color_base" 1.0 1.0 1.0
+	scalar "reflection_weight" 0.0
+	color "refraction_color" 1.0 1.0 1.0
+	scalar "refraction_color_alpha" 1.0
+	color "refraction_color_base" 1.0 1.0 1.0
+	scalar "refraction_weight" 0.0
+	scalar "refraction_glossiness" 100.0
+	scalar "anisotropy" 1.0
+	scalar "rotation" 0.0
+	scalar "ior" 1.5
+	scalar "transparency_weight" 0.0
+	color "transparency_color" 1.0 1.0 1.0
+	scalar "transparency_color_alpha" 1.0
+	color "transparency_color_base" 1.0 1.0 1.0
+	color "sss_color" 1.0 1.0 1.0
+	scalar "sss_color_alpha" 1.0
+	color "sss_color_base" 1.0 1.0 1.0
+	scalar "sss_weight" 0.0
+	scalar "sss_scale" 1.0
+	color "sss_scale_color" 1.0 1.0 1.0
+	scalar "sss_scale_color_alpha" 1.0
+	color "sss_scale_color_base" 1.0 1.0 1.0
+	scalar "displace_weight" 0.0
+	scalar "bump_weight" 0.0
+	scalar "normal_weight" 0.0
+	scalar "emission_weight" 2.0
+	color "emission_color" 1.0 1.0 1.0
+	scalar "emission_color_alpha" 1.0
+	color "emission_color_base" 1.0 1.0 1.0
+	scalar "fresnel_ior_glossy" 1.5
+	bool "refraction_invert_weight" off
+	bool "transparency_invert_weight" off
+	scalar "fresnel_ior" 1.5
+	scalar "normal_weight" 0.0
+	scalar "bump_weight" 0.0
