@@ -27,7 +27,7 @@ void CurlHttp::init()
 	curl_global_init(CURL_GLOBAL_ALL);
 }
 
-void CurlHttp::get(const char *url, const int port, void* retBuffer)
+void CurlHttp::get(const char *url, const int port)
 {
 	CURL *curl = curl_easy_init();
 

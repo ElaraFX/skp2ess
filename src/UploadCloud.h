@@ -1,5 +1,5 @@
 #pragma once
-#include "CurlHttp.h"
 
-extern int uploadCloud(char* exePath);
+#include "lhdt_sdk.h"
 
+extern bool upload(LHDTSDK::LHDTTask &task, LHDTSDK::LHDTConfig &config, char* appPath);

@@ -2,7 +2,7 @@
 #define _CURL_HTTP_H_
 
 #include <curl.h>
-#define MAX_RET_BUFFER 2048
+#define MAX_RET_BUFFER 10000
 
 
 class CurlHttp
@@ -14,7 +14,7 @@ public:
 	~CurlHttp();
 
 	void init();	
-	void get(const char *url, const int port, void* retBuffer);
+	void get(const char *url, const int port);
 	void post(const char *url, const int port, const char *postJsonStr);
 };
 

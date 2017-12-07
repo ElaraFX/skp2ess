@@ -14,17 +14,18 @@
 #include <SketchUpAPI/model/vertex.h>
 #include <SketchUpAPI/unicodestring.h>
 #include <vector>
+#include <iostream>
 #include "Material.h"
 #include "ImportSketchup.h"
 #include "UploadCloud.h"
+#include "CloudRender.h"
 
 #define SKP_FILENAME "gjj1.skp"
 #define SKP_PROJECTNAME "gjj1"
 
-
-
 int main(int argc, char* argv[]) {
-	uploadCloud(argv[0]);
+	CloudRender(argv[0]);
+
 	//g_material_container.SetProjectName(SKP_PROJECTNAME);
 	//import_mesh_from_skp(SKP_FILENAME, "test.ess");
 	return 0;
