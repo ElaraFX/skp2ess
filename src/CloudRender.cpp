@@ -33,7 +33,6 @@ int CloudRender(char* exePath, const char* filename)
 {
 	c_state = CLOUD_STATE_INITIAL;
 	ch.init();
-	std::string("localhost");
 	// login
 	std::string url_login = "http://render7.vsochina.com:10008/api/web/v1/user/login?username=30466622&password=a123456";
 	std::string postfields = "";
@@ -88,7 +87,12 @@ int CloudRender(char* exePath, const char* filename)
 	url_render_task +=  "&token=" + token;
 	url_render_task +=  "&job={";
 	url_render_task +=  "\"guid\":\"Elara\",";
-	url_render_task +=  "\"scene_file\":\"/123/ac_4.ess\",";
+	url_render_task +=  "\"scene_file\":\"/123/";
+	url_render_task +=  filename;
+	url_render_task +=  "\",";
+	url_render_task +=  "\"job_name\":\"";
+	url_render_task +=  filename;
+	url_render_task +=  "\",";
 	url_render_task +=  "\"project_dir\":\"/123/\",";
 	url_render_task +=  "\"output_dir\":\"/output_image/\",";
 	url_render_task +=  "\"image_width\":\"1024\",";
@@ -96,7 +100,6 @@ int CloudRender(char* exePath, const char* filename)
 	url_render_task +=  "\"image_format\":\"png\",";
 	url_render_task +=  "\"filename_prefix\":\"a\",";
 	url_render_task +=  "\"do_analysis\":true,";
-	url_render_task +=  "\"job_name\":\"ac_4\",";
 	url_render_task +=  "\"priority\":\"50\",";
 	url_render_task +=  "\"sub_task_frames\":1,";
 	url_render_task +=  "\"start_frame\":1,";
@@ -136,7 +139,7 @@ int CloudRender(char* exePath, const char* filename)
 		}
 		job_state = root["data"]["job_state"].asInt();
 		std::cout << "job_state:" << job_state << std::endl;
-		Sleep(5000);
+		Sleep(20000);
 	} while(job_state != 4);
 
     return 1;
