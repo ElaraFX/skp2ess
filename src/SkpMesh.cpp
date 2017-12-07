@@ -579,8 +579,8 @@ static void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
 
 	cam.image_width = w;
 	cam.image_height = h;
-	cam.near_clip = n;
-	cam.far_clip = f * 100; //SketchUp far clip is small
+	cam.near_clip = n / 100; //SketchUp near clip is large
+	cam.far_clip = f * 1000; //SketchUp far clip is small
 	cam.fov = fov;
 	memcpy(cam.view_to_world, &ei_tran.m[0], sizeof(cam.view_to_world));
 }

@@ -16,12 +16,17 @@
 #include <vector>
 #include "Material.h"
 #include "ImportSketchup.h"
+#include "UploadCloud.h"
 
-#define SKP_FILENAME "scene1.skp"
-#define SKP_PROJECTNAME "scene1"
+#define SKP_FILENAME "gjj1.skp"
+#define SKP_PROJECTNAME "gjj1"
 
-int main() {
-	g_material_container.SetProjectName(SKP_PROJECTNAME);
-	import_mesh_from_skp(SKP_FILENAME, "test.ess");
+
+
+int main(int argc, char* argv[]) {
+	uploadCloud(argv[0]);
+	//g_material_container.SetProjectName(SKP_PROJECTNAME);
+	//import_mesh_from_skp(SKP_FILENAME, "test.ess");
 	return 0;
 }
+
