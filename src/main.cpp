@@ -24,10 +24,11 @@
 #define SKP_PROJECTNAME "gjj1"
 
 int main(int argc, char* argv[]) {
-	CloudRender(argv[0]);
-
-	//g_material_container.SetProjectName(SKP_PROJECTNAME);
-	//import_mesh_from_skp(SKP_FILENAME, "test.ess");
+	std::string ess_filename(SKP_PROJECTNAME);
+	ess_filename += ".ess";
+	g_material_container.SetProjectName(SKP_PROJECTNAME);
+	import_mesh_from_skp(SKP_FILENAME, ess_filename.c_str());
+	CloudRender(argv[0], ess_filename.c_str());
 	return 0;
 }
 

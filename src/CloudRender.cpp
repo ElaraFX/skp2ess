@@ -29,7 +29,7 @@ void callback(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
 	}
 }
 
-int CloudRender(char* exePath)
+int CloudRender(char* exePath, const char* filename)
 {
 	c_state = CLOUD_STATE_INITIAL;
 	ch.init();
@@ -69,8 +69,8 @@ int CloudRender(char* exePath)
     config.appVersion = "2.0.0"; // 传输协议版本
 
 	LHDTSDK::LHDTTask task;
-	task.filename = "ret.ess";
-    task.local = "D:/Program Files/OSL/bin/";
+	task.filename = filename;
+    task.local = "./";
     task.remote = "/123/";
     task.type = LHDTSDK::LHDTTransferType::LHDT_TT_UPLOAD; // 上传 or 下载
     task.callback = callback; // 回调函数
@@ -88,7 +88,7 @@ int CloudRender(char* exePath)
 	url_render_task +=  "&token=" + token;
 	url_render_task +=  "&job={";
 	url_render_task +=  "\"guid\":\"Elara\",";
-	url_render_task +=  "\"scene_file\":\"/123/ret.ess\",";
+	url_render_task +=  "\"scene_file\":\"/123/ac_4.ess\",";
 	url_render_task +=  "\"project_dir\":\"/123/\",";
 	url_render_task +=  "\"output_dir\":\"/output_image/\",";
 	url_render_task +=  "\"image_width\":\"1024\",";
@@ -96,7 +96,7 @@ int CloudRender(char* exePath)
 	url_render_task +=  "\"image_format\":\"png\",";
 	url_render_task +=  "\"filename_prefix\":\"a\",";
 	url_render_task +=  "\"do_analysis\":true,";
-	url_render_task +=  "\"job_name\":\"ret\",";
+	url_render_task +=  "\"job_name\":\"ac_4\",";
 	url_render_task +=  "\"priority\":\"50\",";
 	url_render_task +=  "\"sub_task_frames\":1,";
 	url_render_task +=  "\"start_frame\":1,";
