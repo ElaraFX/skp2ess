@@ -12,7 +12,7 @@ bool import_mesh_from_skp(const char *file_name, const char *output_filename)
 	EH_begin_export(pContext, output_filename, &option);
 
 	EH_RenderOptions render_op;
-	render_op.quality = EH_MEDIUM;
+	render_op.quality = EH_DEFAULT;
 	EH_set_render_options(pContext, &render_op);
 
 	EH_Sky sky;

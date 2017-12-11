@@ -5,7 +5,6 @@
 
 size_t writeFunc(void *ptr, size_t size, size_t membyte, void *stream)
 {
-	memset(stream, 0, size * membyte);
 	memcpy(stream, ptr, size * membyte);
 	printf((char*)(ptr));
 	printf("\n");
@@ -36,6 +35,8 @@ void CurlHttp::get(const char *url, const int port)
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeFunc);
+	
+	memset(retBuffer, 0, sizeof(char) * MAX_RET_BUFFER);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, retBuffer);
 
 	int ret = curl_easy_perform(curl);
@@ -65,6 +66,8 @@ void CurlHttp::post(const char *url, const int port, const char *postJsonStr)
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(postJsonStr));
 	curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeFunc);
+	
+	memset(retBuffer, 0, sizeof(char) * MAX_RET_BUFFER);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, retBuffer);
 
 	int ret = curl_easy_perform(curl);

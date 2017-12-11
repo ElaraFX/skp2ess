@@ -2,7 +2,7 @@
 #include <iostream>
 
 
-bool upload(LHDTSDK::LHDTTask &task, LHDTSDK::LHDTConfig &config, char* appPath)
+bool executeTask(LHDTSDK::LHDTTask &task, LHDTSDK::LHDTConfig &config, char* appPath)
 {
     /// 创建任务
     LHDTSDK::LHDTTaskList tasklist, existlist;

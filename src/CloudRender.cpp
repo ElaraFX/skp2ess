@@ -5,6 +5,8 @@
 #include <Windows.h>
 #include <iostream>
 
+#define CLOUD_URL "http://render7.vsochina.com:10008"
+
 CurlHttp ch;
 
 enum CLOUD_STATE
@@ -29,12 +31,41 @@ void callback(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
 	}
 }
 
+std::string& replace_all(std::string& str,const std::string& old_value,const std::string& new_value)     
+{     
+    while(true)   
+	{     
+        std::string::size_type pos(0);     
+        if((pos = str.find(old_value)) != std::string::npos)  
+		{
+            str.replace(pos,old_value.length(),new_value);
+		}
+        else
+		{
+			break;  
+		}
+    }     
+    return str;     
+} 
+
+void extractFilePath(std::string &filepath, std::string &filename, std::string &filefolder)
+{
+	replace_all(filepath, "\\", "/");
+	std::string::size_type pos(0);
+	if((pos = filepath.find_last_of("/")) != std::string::npos) 
+	{
+		filefolder = filepath.substr(0, pos);
+		filename = filepath.substr(pos + 1, filepath.size() - 1);
+	}
+}
+
 int CloudRender(char* exePath, const char* filename)
 {
 	c_state = CLOUD_STATE_INITIAL;
 	ch.init();
 	// login
-	std::string url_login = "http://render7.vsochina.com:10008/api/web/v1/user/login?username=30466622&password=a123456";
+	std::string url_login = CLOUD_URL;
+	url_login += "/api/web/v1/user/login?username=30466622&password=a123456";
 	std::string postfields = "";
 	ch.post(url_login.c_str(), 10008, postfields.c_str());
 
@@ -73,7 +104,7 @@ int CloudRender(char* exePath, const char* filename)
     task.remote = "/123/";
     task.type = LHDTSDK::LHDTTransferType::LHDT_TT_UPLOAD; // 上传 or 下载
     task.callback = callback; // 回调函数
-	upload(task, config, exePath);
+	executeTask(task, config, exePath);
 
 	// waiting upload
 	while (c_state <= CLOUD_STATE_TRANSFERRING)
@@ -82,7 +113,8 @@ int CloudRender(char* exePath, const char* filename)
 	}
 
 	// sibmit job
-	std::string url_render_task = "http://render7.vsochina.com:10008/api/web/v1/job/submit?";
+	std::string url_render_task = CLOUD_URL;
+	url_render_task +=  "/api/web/v1/job/submit?";
 	url_render_task +=  "username=" + username;
 	url_render_task +=  "&token=" + token;
 	url_render_task +=  "&job={";
@@ -118,7 +150,7 @@ int CloudRender(char* exePath, const char* filename)
 	//}while(1);
 
 	std::string job_id;
-	int job_state = 0;
+	std::string job_status = "0";
 	if(!reader.parse(ch.retBuffer, root))
 	{
 		std::cout<<"return json error."<<std::endl;
@@ -126,21 +158,61 @@ int CloudRender(char* exePath, const char* filename)
 	}
 	job_id = root["data"]["job_ids"][0].asString();
 
+	
+	std::string url_job_info = CLOUD_URL;
+	url_job_info +=  "/api/web/v1/job/info?";
+	url_job_info +=  "username=" + username;
+	url_job_info +=  "&token=" + token;
+	url_job_info +=  "&job_id=" + job_id;
 	do{
-		std::string url_job_info = "http://render7.vsochina.com:10008/api/web/v1/job/info?";
-		url_job_info +=  "username=" + username;
-		url_job_info +=  "&token=" + token;
-		url_job_info +=  "&job_id=" + job_id;
 		ch.get(url_job_info.c_str(), 10008);
 		if(!reader.parse(ch.retBuffer, root))
 		{
 			std::cout<<"return json error."<<std::endl;
 			return 0;
 		}
-		job_state = root["data"]["job_state"].asInt();
-		std::cout << "job_state:" << job_state << std::endl;
-		Sleep(20000);
-	} while(job_state != 4);
+		job_status = root["data"]["job_status"].asString();
+		std::cout << "job_status:" << job_status << std::endl;
+		Sleep(10000);
+	} while(job_status == "4");
 
+	// get output file
+	std::string output_path;
+	std::string url_output_file = CLOUD_URL;
+	url_output_file += "/api/web/v1/job/output_files2?";
+	url_output_file +=  "username=" + username;
+	url_output_file +=  "&token=" + token;
+	url_output_file +=  "&job_id=" + job_id;
+
+	do{
+		ch.get(url_output_file.c_str(), 10008);
+		if(!reader.parse(ch.retBuffer, root))
+		{
+			std::cout<<"return json error."<<std::endl;
+			return 0;
+		}
+		if (root["data"]["status"].asInt() == 1)
+		{
+			output_path = root["data"]["files"][0]["file"].asString();
+		}
+		else
+		{
+			Sleep(30000);
+		}
+	} while(root["data"]["status"].asInt() != 1);
+
+	// download output file
+	std::string outfilename;
+	std::string outfilefolder;
+	LHDTSDK::LHDTTask task_download;
+	extractFilePath(output_path, outfilename, outfilefolder);
+	task_download.filename = outfilename.c_str();
+    task_download.local = "D:/";
+    task_download.remote = outfilefolder.c_str();
+    task_download.type = LHDTSDK::LHDTTransferType::LHDT_TT_DOWNLOAD; // 上传 or 下载
+    task_download.callback = callback; // 回调函数
+	executeTask(task_download, config, exePath);
+
+	system("pause");
     return 1;
 }

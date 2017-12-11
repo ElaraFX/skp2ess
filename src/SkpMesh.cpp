@@ -413,6 +413,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	export_light(ctx);
 
 	//add exposure	
+	//set_outworld_day_exposure(ctx);
 	set_day_exposure(ctx);	
 
 	// Must release the model or there will be memory leaks
