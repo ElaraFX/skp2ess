@@ -59,7 +59,7 @@ void extractFilePath(std::string &filepath, std::string &filename, std::string &
 	}
 }
 
-int CloudRender(char* exePath, const char* filename)
+int CloudRender(const char* exePath, const char* filename, const char* outputprefix, const char* outputtype, const char* outputpath)
 {
 	c_state = CLOUD_STATE_INITIAL;
 	ch.init();
@@ -129,8 +129,12 @@ int CloudRender(char* exePath, const char* filename)
 	url_render_task +=  "\"output_dir\":\"/output_image/\",";
 	url_render_task +=  "\"image_width\":\"1024\",";
 	url_render_task +=  "\"image_height\":\"768\",";
-	url_render_task +=  "\"image_format\":\"png\",";
-	url_render_task +=  "\"filename_prefix\":\"a\",";
+	url_render_task +=  "\"image_format\":\"";
+	url_render_task +=  outputtype;
+	url_render_task +=  "\",";
+	url_render_task +=  "\"filename_prefix\":\"";
+	url_render_task +=  outputprefix;
+	url_render_task +=  "\",";
 	url_render_task +=  "\"do_analysis\":true,";
 	url_render_task +=  "\"priority\":\"50\",";
 	url_render_task +=  "\"sub_task_frames\":1,";
@@ -174,7 +178,13 @@ int CloudRender(char* exePath, const char* filename)
 		job_status = root["data"]["job_status"].asString();
 		std::cout << "job_status:" << job_status << std::endl;
 		Sleep(10000);
-	} while(job_status == "4");
+	} while(job_status != "4" && job_status != "7");
+
+	if (job_status == "7")
+	{
+		std::cout<<"job failed!"<<std::endl;
+		return 0;
+	}
 
 	// get output file
 	std::string output_path;
@@ -197,7 +207,7 @@ int CloudRender(char* exePath, const char* filename)
 		}
 		else
 		{
-			Sleep(30000);
+			Sleep(10000);
 		}
 	} while(root["data"]["status"].asInt() != 1);
 
@@ -207,7 +217,7 @@ int CloudRender(char* exePath, const char* filename)
 	LHDTSDK::LHDTTask task_download;
 	extractFilePath(output_path, outfilename, outfilefolder);
 	task_download.filename = outfilename.c_str();
-    task_download.local = "D:/";
+    task_download.local = outputpath;
     task_download.remote = outfilefolder.c_str();
     task_download.type = LHDTSDK::LHDTTransferType::LHDT_TT_DOWNLOAD; // 上传 or 下载
     task_download.callback = callback; // 回调函数
