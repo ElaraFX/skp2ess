@@ -25,7 +25,7 @@ enum CLOUD_STATE
 	CLOUD_STATE_TRANSFER_FAILED,
 };
 
-__declspec(thread) volatile CLOUD_STATE c_state = CLOUD_STATE_INITIAL;
+volatile CLOUD_STATE c_state = CLOUD_STATE_INITIAL;
 void callback(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
 {
     if (c.status == LHDTSDK::LHDT_TS_TRANSFERRING)
