@@ -22,25 +22,33 @@
 #include "skp2ess.h"
 
 
-void skpCloudRender(skp2ess_config &sg)
+int skpCloudRender(const char* exePath, const char* filename, const char* projectname, const char* outputprefix, const char* outputtype, const char* outputpath)
 {
-	std::string ess_filename(sg.skp_projectname);
+	std::string ess_filename(projectname);
 	ess_filename += ".ess";
-	g_material_container.SetProjectName(sg.skp_projectname.c_str());
-	import_mesh_from_skp(sg.skp_filename.c_str(), ess_filename.c_str());
-	CloudRender(sg.exepath.c_str(), ess_filename.c_str(), sg.outputfileprefix.c_str(), sg.outputfiletype.c_str(), sg.outputpath.c_str());
+	g_material_container.SetProjectName(projectname);
+	if (!import_mesh_from_skp(filename, ess_filename.c_str()))
+	{
+		return 1;
+	}
+
+	int ret = CloudRender(exePath, ess_filename.c_str(), outputprefix, outputtype, outputpath);
+	if (ret > 0)
+	{
+		ret += 1;
+	}
+
+	return ret;
 }
 
-//int main(int argc, char* argv[]) {
-//	skp2ess_config sg;
-//	sg.skp_filename = "gjj1.skp";
-//	sg.skp_projectname = "gjj1";
-//	sg.outputpath = "D:/";
-//	sg.outputfileprefix = "result";
-//	sg.outputfiletype = "png";
-//	sg.exepath = argv[0];
-//
-//	skpCloudRender(sg);
+void setResolution(int x, int y)
+{
+	g_res_x = x;
+	g_res_y = y;
+}
+
+//int main(int argc, char* argv[])
+//{
+//	skpCloudRender(argv[0], "gjj1.skp", "gjj1", "result", "png", "D:/");
 //	return 0;
 //}
-

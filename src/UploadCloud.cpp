@@ -15,5 +15,6 @@ bool executeTask(LHDTSDK::LHDTTask &task, LHDTSDK::LHDTConfig &config, const cha
     api.SetConfig(config);
     api.LaunchTransferTasks(tasklist, existlist, true);
 
+	delete[] buf;
     return true;
 }

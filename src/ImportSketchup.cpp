@@ -44,7 +44,8 @@ bool import_mesh_from_skp(const char *file_name, const char *output_filename)
 	eiTimer export_ess_timer;
 	ei_timer_start(&export_ess_timer);
 
-	skp_to_ess(file_name, pContext);
+	if (!skp_to_ess(file_name, pContext))
+		return false;
 
 	//skp_to_ess(file_name, pContext);
 	//gjj_skp_to_ess(file_name, pContext);

@@ -6,8 +6,15 @@
 #include <iostream>
 
 #define CLOUD_URL "http://render7.vsochina.com:10008"
+#define JOB_STATUS_COMPLETE "4"
+#define JOB_STATUS_FAILED "7"
+#define CLOUD_CENTER_IP "cbs7.vsochina.com"
+#define SERVER_PORT "9001"
+#define REMOTE_PATH "/123/"
 
 CurlHttp ch;
+__declspec(thread) int g_res_x;
+__declspec(thread) int g_res_y;
 
 enum CLOUD_STATE
 {
@@ -15,9 +22,10 @@ enum CLOUD_STATE
 	CLOUD_STATE_TRANSFERRING,
 	CLOUD_STATE_RENDERING,
 	CLOUD_STATE_RETURN,
+	CLOUD_STATE_TRANSFER_FAILED,
 };
 
-CLOUD_STATE c_state = CLOUD_STATE_INITIAL;
+__declspec(thread) volatile CLOUD_STATE c_state = CLOUD_STATE_INITIAL;
 void callback(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
 {
     if (c.status == LHDTSDK::LHDT_TS_TRANSFERRING)
@@ -28,6 +36,11 @@ void callback(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
 	{
 		std::cout << "Transfer complete!" << std::endl;
 		c_state = CLOUD_STATE_RENDERING;
+	}
+	else if (c.status == LHDTSDK::LHDT_TS_TRANSFER_FAILURE)
+	{
+		std::cout << "Transfer failed!" << std::endl;
+		c_state = CLOUD_STATE_TRANSFER_FAILED;
 	}
 }
 
@@ -92,8 +105,8 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 
     /// 以下信息从web api的 domain接口获取
     config.serverId = 7; // 分中心Id
-    config.serverIp = "cbs7.vsochina.com"; // 分中心服务器Ip
-    config.serverPort = "9001"; // 传输端口
+    config.serverIp = CLOUD_CENTER_IP; // 分中心服务器Ip
+    config.serverPort = SERVER_PORT; // 传输端口
     config.retryCount = 3; // 重试次数
     config.app = "GF"; // app名 GF=GoldenFarm
     config.appVersion = "2.0.0"; // 传输协议版本
@@ -101,7 +114,7 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 	LHDTSDK::LHDTTask task;
 	task.filename = filename;
     task.local = "./";
-    task.remote = "/123/";
+    task.remote = REMOTE_PATH;
     task.type = LHDTSDK::LHDTTransferType::LHDT_TT_UPLOAD; // 上传 or 下载
     task.callback = callback; // 回调函数
 	executeTask(task, config, exePath);
@@ -109,11 +122,19 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 	// waiting upload
 	while (c_state <= CLOUD_STATE_TRANSFERRING)
 	{
-		Sleep(1000);
+		Sleep(2000);
+	}
+
+	if (c_state == CLOUD_STATE_TRANSFER_FAILED)
+	{
+		return 1;
 	}
 
 	// sibmit job
 	std::string url_render_task = CLOUD_URL;
+	char res_x[32] = "", res_y[32] = "";
+	sprintf(res_x, "%d", g_res_x);
+	sprintf(res_y, "%d", g_res_y);
 	url_render_task +=  "/api/web/v1/job/submit?";
 	url_render_task +=  "username=" + username;
 	url_render_task +=  "&token=" + token;
@@ -127,8 +148,12 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 	url_render_task +=  "\",";
 	url_render_task +=  "\"project_dir\":\"/123/\",";
 	url_render_task +=  "\"output_dir\":\"/output_image/\",";
-	url_render_task +=  "\"image_width\":\"1024\",";
-	url_render_task +=  "\"image_height\":\"768\",";
+	url_render_task +=  "\"image_width\":\"";
+	url_render_task +=  res_x;
+	url_render_task +=  "\",";
+	url_render_task +=  "\"image_height\":\"";
+	url_render_task +=  res_y;
+	url_render_task +=  "\",";
 	url_render_task +=  "\"image_format\":\"";
 	url_render_task +=  outputtype;
 	url_render_task +=  "\",";
@@ -145,20 +170,12 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 	url_render_task +=  "}";
 	ch.post(url_render_task.c_str(), 10008, postfields.c_str());
 
-	// get job info
-	//do{
-		/*std::string url_job_info = "http://render7.vsochina.com:10008/api/web/v1/job/list?";
-		url_job_info +=  "username=" + username;
-		url_job_info +=  "&token=" + token;
-		ch.get(url_job_info.c_str(), 10008);*/
-	//}while(1);
-
 	std::string job_id;
 	std::string job_status = "0";
 	if(!reader.parse(ch.retBuffer, root))
 	{
 		std::cout<<"return json error."<<std::endl;
-		return 0;
+		return 2;
 	}
 	job_id = root["data"]["job_ids"][0].asString();
 
@@ -173,17 +190,17 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 		if(!reader.parse(ch.retBuffer, root))
 		{
 			std::cout<<"return json error."<<std::endl;
-			return 0;
+			return 2;
 		}
 		job_status = root["data"]["job_status"].asString();
 		std::cout << "job_status:" << job_status << std::endl;
 		Sleep(10000);
-	} while(job_status != "4" && job_status != "7");
+	} while(job_status != JOB_STATUS_COMPLETE && job_status != JOB_STATUS_FAILED);
 
-	if (job_status == "7")
+	if (job_status == JOB_STATUS_FAILED)
 	{
 		std::cout<<"job failed!"<<std::endl;
-		return 0;
+		return 3;
 	}
 
 	// get output file
@@ -199,7 +216,7 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 		if(!reader.parse(ch.retBuffer, root))
 		{
 			std::cout<<"return json error."<<std::endl;
-			return 0;
+			return 2;
 		}
 		if (root["data"]["status"].asInt() == 1)
 		{
@@ -223,6 +240,5 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
     task_download.callback = callback; // 回调函数
 	executeTask(task_download, config, exePath);
 
-	system("pause");
-    return 1;
+    return 0;
 }
