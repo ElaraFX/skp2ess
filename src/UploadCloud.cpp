@@ -1,4 +1,5 @@
 #include "UploadCloud.h"
+#include "CloudRender.h"
 #include <iostream>
 
 
@@ -10,10 +11,9 @@ bool executeTask(LHDTSDK::LHDTTask &task, LHDTSDK::LHDTConfig &config, const cha
     LHDTSDK::LHDTTaskList tasklist, existlist;
     tasklist.push_back(task);
 
-    LHDTSDK::LHDTInterface api;
-    api.Initial(buf); // 传入app.exe 路径
-    api.SetConfig(config);
-    api.LaunchTransferTasks(tasklist, existlist, true);
+    g_cri.api.Initial(buf); // 传入app.exe 路径
+    g_cri.api.SetConfig(config);
+    g_cri.api.LaunchTransferTasks(tasklist, existlist, true);
 
 	delete[] buf;
     return true;

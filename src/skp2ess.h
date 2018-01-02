@@ -27,6 +27,13 @@
  *
  * 该函数是阻塞函数，会一直等到任务完成再返回值
  * 
+ * 参数：
+ *   exePath：项目程序路径
+ *   filename：skp文件名
+ *   projectname：工程名
+ *   outputprefix：输出文件前缀
+ *   outputtype：输出文件类型
+ *   outputpath：输出文件目录
  * 返回值解释：
  *    0    渲染成功
  *    1    ESS翻译失败
