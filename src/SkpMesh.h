@@ -22,13 +22,15 @@ enum EXP_TYPE{
 	ET_MAX
 };
 
-struct envi_set
+struct skp2ess_set
 {
 	EXP_TYPE exposure_type;
-	envi_set()
+	EH_RenderQuality opt_quality;
+	skp2ess_set()
 	{
 		exposure_type = ET_DAY;
+		opt_quality = EH_DEFAULT;
 	}
 };
 
-extern envi_set g_envi_set;
+extern skp2ess_set g_skp2ess_set;

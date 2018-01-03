@@ -24,6 +24,7 @@ struct cloud_render_info
 	int res_y;
 	CLOUD_STATE c_state;
 	float paramTransfer;
+	int transferMaxSpeed;
 	cloud_render_info()
 	{
 		res_x = 1024;
@@ -31,6 +32,7 @@ struct cloud_render_info
 		c_state = CLOUD_STATE_INITIAL;
 		ch.init();
 		paramTransfer = 0;
+		transferMaxSpeed = -1;
 	}
 };
 

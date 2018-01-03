@@ -118,6 +118,11 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
     config.retryCount = 3; // 重试次数
     config.app = "GF"; // app名 GF=GoldenFarm
     config.appVersion = "2.0.0"; // 传输协议版本
+	if (g_cri.transferMaxSpeed > 0)
+	{
+		config.maxUploadRate = g_cri.transferMaxSpeed;
+	}
+
 
 	LHDTSDK::LHDTTask task;
 	task.filename = filename;
@@ -294,6 +299,10 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
     config.retryCount = 3; // 重试次数
     config.app = "GF"; // app名 GF=GoldenFarm
     config.appVersion = "2.0.0"; // 传输协议版本
+	if (g_cri.transferMaxSpeed > 0)
+	{
+		config.maxDownloadRate = g_cri.transferMaxSpeed;
+	}
 
 	executeTask(task_download, config, exePath);
 	

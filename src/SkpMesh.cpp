@@ -39,7 +39,7 @@ static const float INCH2MM = 25.4;
 
 static std::string MAT_PATH;
 
-envi_set g_envi_set;
+skp2ess_set g_skp2ess_set;
 
 struct Vertex
 {
@@ -428,12 +428,12 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 
 	//add exposure	
 	//set_outworld_day_exposure(ctx);
-	if (g_envi_set.exposure_type == ET_DAY)
+	if (g_skp2ess_set.exposure_type == ET_DAY)
 	{
 		set_day_exposure(ctx);	
 		set_sun(ctx, sun_dir);
 	}
-	else if (g_envi_set.exposure_type == ET_NIGHT)
+	else if (g_skp2ess_set.exposure_type == ET_NIGHT)
 	{
 		set_night_exposure(ctx);
 	}
@@ -605,12 +605,7 @@ static void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScal
 	SU_CALL(SUMaterialGetNameLegacyBehavior(skp_mtl, name));
 	int index = g_material_container.FindIndexWithString(name.utf8());
 	MaterialInfo &mtl_info = g_material_container.materialinfos[index];
-
-	if(eh_mtl.diffuse_tex.filename)
-		delete eh_mtl.diffuse_tex.filename;
-	eh_mtl.diffuse_tex.filename = new char[mtl_info.texture_path_.size() + 1];
-	memcpy(eh_mtl.diffuse_tex.filename, mtl_info.texture_path_.c_str(), mtl_info.texture_path_.size());
-	eh_mtl.diffuse_tex.filename[mtl_info.texture_path_.size()] = '\0';
+	eh_mtl.diffuse_tex.filename = mtl_info.texture_path_.c_str();
 	if (mtl_info.has_alpha_)
 	{
 		eh_mtl.transp_weight = 1.0 - mtl_info.alpha_;

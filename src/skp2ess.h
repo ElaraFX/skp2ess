@@ -43,7 +43,7 @@
  */
 extern "C" __declspec(dllexport) int skpCloudRender(const char* exePath, const char* filename, const char* projectname, const char* outputprefix, const char* outputtype, const char* outputpath);
 
-
+/** 功能：设置渲染分辨率：*/ 
 extern "C" __declspec(dllexport) void setResolution(int x, int y);
 
 /** 功能：设置环境模式：
@@ -53,6 +53,18 @@ extern "C" __declspec(dllexport) void setResolution(int x, int y);
  */
 extern "C" __declspec(dllexport) void setEnviroment(unsigned int t);
 
+/** 功能：设置上传下载的最大速度：
+ *  单位Mbps, 0~80 默认8Mbps
+ */ 
+extern "C" __declspec(dllexport) void setTranferMaxSpeed(int s);
+
+/** 功能：设置渲染质量参数：
+ *  0: 中等质量
+ *  1: 低质量
+ *  2: 高质量
+ *  3: 默认
+ */
+extern "C" __declspec(dllexport) void setRenderQuality(unsigned int q);
 
 /** 功能：获取当前任务状态：
  *	参数：state: 当前状态

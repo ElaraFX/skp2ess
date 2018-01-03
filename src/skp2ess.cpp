@@ -73,18 +73,32 @@ void getState(unsigned int *state, float *param)
 	}
 }
 
+void setTranferMaxSpeed(int s)
+{
+	g_cri.transferMaxSpeed = s;
+}
+
 void setEnviroment(unsigned int t)
 {
 	if (t < ET_MAX)
 	{
-		g_envi_set.exposure_type = EXP_TYPE(t);
+		g_skp2ess_set.exposure_type = EXP_TYPE(t);
 	}
 }
 
-//int main(int argc, char* argv[])
-//{
-//	setEnviroment(0);
-//	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall_test1.skp", "wall_test1", "result", "png", "D:/");
-//	system("pause");
-//	return 0;
-//}
+void setRenderQuality(unsigned int q)
+{
+	if (q <= EH_DEFAULT)
+	{
+		g_skp2ess_set.opt_quality = EH_RenderQuality(q);
+	}
+}
+
+int main(int argc, char* argv[])
+{
+	setEnviroment(0);
+	setRenderQuality(2);
+	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall_test1.skp", "wall_test1", "result", "png", "D:/");
+	system("pause");
+	return 0;
+}
