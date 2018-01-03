@@ -61,11 +61,12 @@ void GetMaterialInfo(SUMaterialRef material)
 				}
 			}
 			sprintf(texPath, "%s\\%s", projectDir, info.texture_name_.c_str());
-			SUResult ret = SUTextureWriteToFile(texture, texPath);
+			// for guojiajia, don't write texture file to disk
+			/*SUResult ret = SUTextureWriteToFile(texture, texPath);
 			if (ret != SU_ERROR_NONE)
 			{
 				printf("Create texture file: \'%s\' failed!\n", texPath);
-			}
+			}*/
 
 			// Set texture full path
 			info.texture_path_ = std::string(texPath);

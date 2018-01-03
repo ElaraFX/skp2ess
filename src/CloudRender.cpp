@@ -7,6 +7,7 @@
 
 #define CLOUD_URL "http://render7.vsochina.com:10008"
 #define JOB_STATUS_COMPLETE "4"
+#define JOB_STATUS_RENDER "1"
 #define JOB_STATUS_FAILED "7"
 #define CLOUD_CENTER_IP "cbs7.vsochina.com"
 #define SERVER_PORT "33001"
@@ -19,11 +20,13 @@ void callback_upload(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
     if (c.status == LHDTSDK::LHDT_TS_TRANSFERRING)
 	{
         std::cout << "bytes" << " : " << c.transferredBytes << "/" << c.totalBytes << std::endl;
+		g_cri.paramTransfer = float(c.transferredBytes) / max(float(c.totalBytes), 1);
 	}
 	else if (c.status == LHDTSDK::LHDT_TS_FINISHED)
 	{
 		std::cout << "Transfer complete! Id:" << c.id << std::endl;
-		g_cri.c_state = CLOUD_STATE_RENDERING;
+		g_cri.paramTransfer = 1;
+		g_cri.c_state = CLOUD_STATE_WAIT_RENDER;
 	}
 	else if (c.status == LHDTSDK::LHDT_TS_TRANSFER_FAILURE)
 	{
@@ -37,10 +40,12 @@ void callback_download(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
     if (c.status == LHDTSDK::LHDT_TS_TRANSFERRING)
 	{
         std::cout << "bytes" << " : " << c.transferredBytes << "/" << c.totalBytes << std::endl;
+		g_cri.paramTransfer = float(c.transferredBytes) / max(float(c.totalBytes), 1);
 	}
 	else if (c.status == LHDTSDK::LHDT_TS_FINISHED)
 	{
 		std::cout << "Transfer complete! Id:" << c.id << std::endl;
+		g_cri.paramTransfer = 1;
 		g_cri.c_state = CLOUD_STATE_RETURN;
 	}
 	else if (c.status == LHDTSDK::LHDT_TS_TRANSFER_FAILURE)
@@ -98,6 +103,7 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 
 	// upload
 	g_cri.c_state = CLOUD_STATE_TRANSFERRING;
+	g_cri.paramTransfer = 0;
     LHDTSDK::LHDTConfig config;
 	config.method = LHDTSDK::ASPERA;
  
@@ -223,6 +229,10 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 		}
 		job_status = root["data"]["job_status"].asString();
 		std::cout << "job_status:" << job_status << std::endl;
+		if (job_status == JOB_STATUS_RENDER)
+		{
+			g_cri.c_state = CLOUD_STATE_RENDERING;
+		}
 	} while(job_status != JOB_STATUS_COMPLETE && job_status != JOB_STATUS_FAILED);
 
 	if (job_status == JOB_STATUS_FAILED)
@@ -230,6 +240,8 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 		std::cout<<"job failed!"<<std::endl;
 		return 3;
 	}
+
+	g_cri.c_state = CLOUD_STATE_WAITING_OUTPUT;
 
 	// get output file
 	std::string output_path;
@@ -262,6 +274,7 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 
 	// download output file
 	g_cri.c_state = CLOUD_STATE_DOWNLOADING;
+	g_cri.paramTransfer = 0;
 	std::string outfilename;
 	std::string outfilefolder;
 	LHDTSDK::LHDTTask task_download;

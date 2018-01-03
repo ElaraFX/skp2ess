@@ -55,9 +55,36 @@ void setResolution(int x, int y)
 	g_cri.res_y = y;
 }
 
+void getState(unsigned int *state, float *param)
+{
+	*state = g_cri.c_state;
+	*param = 0;
+	if (g_cri.c_state == CLOUD_STATE_TRANSFERRING)
+	{
+		*param = g_cri.paramTransfer;
+	}
+	else if (g_cri.c_state == CLOUD_STATE_DOWNLOADING)
+	{
+		*param = g_cri.paramTransfer;
+	}
+	else if (g_cri.c_state == CLOUD_STATE_RENDERING)
+	{
+
+	}
+}
+
+void setEnviroment(unsigned int t)
+{
+	if (t < ET_MAX)
+	{
+		g_envi_set.exposure_type = EXP_TYPE(t);
+	}
+}
+
 //int main(int argc, char* argv[])
 //{
-//	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall_test2.skp", "wall_test1", "result", "png", "D:/");
+//	setEnviroment(0);
+//	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall_test1.skp", "wall_test1", "result", "png", "D:/");
 //	system("pause");
 //	return 0;
 //}

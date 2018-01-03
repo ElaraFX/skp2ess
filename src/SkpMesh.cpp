@@ -39,13 +39,7 @@ static const float INCH2MM = 25.4;
 
 static std::string MAT_PATH;
 
-enum exposure_type
-{
-	e_exposure_day,
-	e_exposure_night,
-	e_exposure_outworld_day
-};
-static int g_exposure_type = e_exposure_day;
+envi_set g_envi_set;
 
 struct Vertex
 {
@@ -138,11 +132,11 @@ static void export_light(EH_Context *ctx);
 static void import_mat_list();
 static void release_all_res();
 static EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal);
-static EH_Sun create_sun_dir_light(const eiVector &dir);
 static void fix_inf_vertex(eiVector &v);
 static void set_day_exposure(EH_Context *ctx);
 static void set_night_exposure(EH_Context *ctx);
 static void set_outworld_day_exposure(EH_Context *ctx);
+static void set_sun(EH_Context *ctx, EH_Vec2 &dir);
 
 #ifdef _MSC_VER
 static std::wstring to_utf16(std::string str);
@@ -388,21 +382,6 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	SUEntitiesRef entities = SU_INVALID;
 	SUModelGetEntities(model, &entities);
 
-	// Get Camera	
-	SUCameraRef su_cam_ref = SU_INVALID;
-	SUModelGetCamera(model, &su_cam_ref);
-	if(su_cam_ref.ptr)
-	{
-		EH_Camera eh_cam;
-		convert_to_eh_camera(eh_cam, su_cam_ref);
-
-		EH_set_camera(ctx, &eh_cam);
-	}
-	else
-	{
-		printf("This scene has no active camera!\n");
-	}
-
 	//Get shadow info
 	SUShadowInfoRef shadow_info;
 	SUResult get_sun_dir_ret;
@@ -420,15 +399,16 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		}
 
 	}
-
+	
+	// get sun direction
+	EH_Vec2 sun_dir;
 	if(get_sun_dir_ret == SU_ERROR_NONE)
 	{		
 		double vector3d_val[3];
 		SUTypedValueGetVector3d(dir_val, vector3d_val);
 		printf("x = %f, y = %f, z = %f\n", vector3d_val[0], vector3d_val[1], vector3d_val[2]);
 
-		EH_Sun sun;
-		sun.dir[0] = std::acos(vector3d_val[2]);
+		sun_dir[0] = std::acos(vector3d_val[2]);
 		float phi = std::atan(vector3d_val[1]/vector3d_val[0]);
 		if(vector3d_val[0] > 0.0f)
 		{
@@ -438,20 +418,45 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		{
 			phi = phi + EI_PI;
 		}
-
-		sun.dir[1] = phi; 
-		//printf("theta = %f, phi = %f\n", sun.dir[0] * (180.0/EI_PI), sun.dir[1] * (180.0/EI_PI));
-		float color[3] = {0.94902, 0.776471, 0.619608};
-		memcpy(sun.color, color, sizeof(color));
-		sun.intensity = 30.4;
-		sun.soft_shadow = 1.0f;
-		EH_set_sun(ctx, &sun);
+		sun_dir[1] = phi;
 	}
 	else
 	{
 		printf("Get sun direction error ! error code = %d\n", get_sun_dir_ret);
 	}
 	SUTypedValueRelease(&dir_val);
+
+	//add exposure	
+	//set_outworld_day_exposure(ctx);
+	if (g_envi_set.exposure_type == ET_DAY)
+	{
+		set_day_exposure(ctx);	
+		set_sun(ctx, sun_dir);
+	}
+	else if (g_envi_set.exposure_type == ET_NIGHT)
+	{
+		set_night_exposure(ctx);
+	}
+	else
+	{
+		set_outworld_day_exposure(ctx);	
+		set_sun(ctx, sun_dir);
+	}
+
+	// Get Camera	
+	SUCameraRef su_cam_ref = SU_INVALID;
+	SUModelGetCamera(model, &su_cam_ref);
+	if(su_cam_ref.ptr)
+	{
+		EH_Camera eh_cam;
+		convert_to_eh_camera(eh_cam, su_cam_ref);
+
+		EH_set_camera(ctx, &eh_cam);
+	}
+	else
+	{
+		printf("This scene has no active camera!\n");
+	}
 
 	// Get all materials
 	GetAllMaterials(model);	
@@ -503,10 +508,6 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	g_mtl_map.clear();
 
 	export_light(ctx);
-
-	//add exposure	
-	//set_outworld_day_exposure(ctx);
-	set_day_exposure(ctx);	
 
 	// Must release the model or there will be memory leaks
 	SUModelRelease(&model);
@@ -950,8 +951,6 @@ static void release_all_res()
 	g_mtl_vertex_cache_map.clear();
 	mat_list.clear();
 	light_vector.clear();
-
-	g_exposure_type = e_exposure_night;
 }
 
 static EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal)
@@ -983,30 +982,6 @@ static EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVect
 	memcpy(cam.view_to_world, &ei_tran.m[0], sizeof(cam.view_to_world));
 
 	return cam;
-}
-
-static EH_Sun create_sun_dir_light(const eiVector &dir)
-{
-	EH_Sun sun;
-	sun.dir[0] = std::acos(dir.z);
-	float phi = std::atan(dir.y/dir.x);
-	if(dir.x > 0.0f)
-	{
-		phi = phi;
-	}
-	else
-	{
-		phi = phi + EI_PI;
-	}
-
-	sun.dir[1] = phi; 
-	//printf("theta = %f, phi = %f\n", sun.dir[0] * (180.0/EI_PI), sun.dir[1] * (180.0/EI_PI));
-	float color[3] = {0.94902, 0.776471, 0.619608};
-	memcpy(sun.color, color, sizeof(color));
-	sun.intensity = 100.0f;
-	sun.soft_shadow = 1.0f;
-
-	return sun;
 }
 
 static void fix_inf_vertex(eiVector &v)
@@ -1084,4 +1059,16 @@ static void set_outworld_day_exposure(EH_Context *ctx)
 	sky.intensity = 40.0f;
 	sky.enable_emit_GI = true;
 	EH_set_sky(ctx, &sky);
+}
+
+static void set_sun(EH_Context *ctx, EH_Vec2 &dir)
+{
+	EH_Sun sun;
+	sun.dir[0] = dir[0];
+	sun.dir[1] = dir[1];
+	float color[3] = {0.94902, 0.776471, 0.619608};
+	memcpy(sun.color, color, sizeof(color));
+	sun.intensity = 94.24778;
+	sun.soft_shadow = 1.0f;
+	EH_set_sun(ctx, &sun);
 }

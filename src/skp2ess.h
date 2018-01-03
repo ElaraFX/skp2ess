@@ -46,4 +46,27 @@ extern "C" __declspec(dllexport) int skpCloudRender(const char* exePath, const c
 
 extern "C" __declspec(dllexport) void setResolution(int x, int y);
 
+/** 功能：设置环境模式：
+ *  0: 白天室内
+ *  1: 夜晚
+ *  2: 白天室外
+ */
+extern "C" __declspec(dllexport) void setEnviroment(unsigned int t);
+
+
+/** 功能：获取当前任务状态：
+ *	参数：state: 当前状态
+ *  0: 格式转换(skp - ess)
+ *  1: 上传ess
+ *  2: 排队等待渲染
+ *	3: 正在渲染
+ *	4: 正在生成结果文件
+ *  5: 下载结果文件
+ *  6: 流程結束
+ *  7: 上传或下载文件失败
+ *  --------------------------
+ *  param: 当状态处于上传或者下载的时候，该参数可以获得上传下载进度
+ */
+extern "C" __declspec(dllexport) void getState(unsigned int *state, float *param);
+
 #endif
