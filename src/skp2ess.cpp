@@ -55,6 +55,12 @@ void setResolution(int x, int y)
 	g_cri.res_y = y;
 }
 
+void setUsernamePassword(const char *username, const char *password)
+{
+	g_cri.username = username;
+	g_cri.password = password;
+}
+
 void getState(unsigned int *state, float *param)
 {
 	*state = g_cri.c_state;
@@ -94,11 +100,11 @@ void setRenderQuality(unsigned int q)
 	}
 }
 
-int main(int argc, char* argv[])
-{
-	setEnviroment(0);
-	setRenderQuality(2);
-	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall_test1.skp", "wall_test1", "result", "png", "D:/");
-	system("pause");
-	return 0;
-}
+//int main(int argc, char* argv[])
+//{
+//	setEnviroment(1);
+//	setRenderQuality(1);
+//	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall_test2.skp", "wall_test1", "result", "png", "D:/");
+//	system("pause");
+//	return 0;
+//}

@@ -26,6 +26,8 @@
  *   3. 等待渲染结束并下载结果图片，输出到指定路径
  *
  * 该函数是阻塞函数，会一直等到任务完成再返回值
+ *
+ * 注意：后面的所有设置参数类的API都需要在放在该函数之前执行
  * 
  * 参数：
  *   exePath：项目程序路径
@@ -76,9 +78,14 @@ extern "C" __declspec(dllexport) void setRenderQuality(unsigned int q);
  *  5: 下载结果文件
  *  6: 流程結束
  *  7: 上传或下载文件失败
+ *  8: 登陆错误
  *  --------------------------
  *  param: 当状态处于上传或者下载的时候，该参数可以获得上传下载进度
  */
 extern "C" __declspec(dllexport) void getState(unsigned int *state, float *param);
+
+/** 功能：设置云平台登陆的用户名密码
+ */
+extern "C" __declspec(dllexport) void setUsernamePassword(const char *username, const char *password);
 
 #endif

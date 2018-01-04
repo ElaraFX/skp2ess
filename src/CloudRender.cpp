@@ -3,7 +3,6 @@
 #include "lhdt_sdk.h"
 #include "UploadCloud.h"
 #include <Windows.h>
-#include <iostream>
 
 #define CLOUD_URL "http://render7.vsochina.com:10008"
 #define JOB_STATUS_COMPLETE "4"
@@ -87,7 +86,9 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 {
 	// login
 	std::string url_login = CLOUD_URL;
-	url_login += "/api/web/v1/user/login?username=30466622&password=a123456";
+	url_login += "/api/web/v1/user/login?username=";
+	url_login += g_cri.username + "&password=";
+	url_login += g_cri.password;
 	std::string postfields = "";
 	g_cri.ch.post(url_login.c_str(), 10008, postfields.c_str());
 
@@ -96,6 +97,12 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 	if(!reader.parse(g_cri.ch.retBuffer, root))
 	{
 		std::cout<<"return json error."<<std::endl;
+		return 0;
+	}
+	if (root["ret"].asInt() != 0)
+	{
+		// µÇÂ½Ê§°Ü
+		g_cri.c_state = CLOUD_STATE_LOGIN_FAILED;
 		return 0;
 	}
 	memcpy(username, root["data"]["username"].asString().c_str(), root["data"]["username"].asString().size());
@@ -196,7 +203,10 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 	char username[128] = "";
 	char token[128] = "";
 	char job_id[128] = "";
-	upload_ess(exePath, filename, outputprefix, outputtype, outputpath, username, token);
+	if (!upload_ess(exePath, filename, outputprefix, outputtype, outputpath, username, token))
+	{
+		return 1;
+	}
 
 	// waiting upload
 	while (g_cri.c_state <= CLOUD_STATE_TRANSFERRING)
