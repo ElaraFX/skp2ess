@@ -30,6 +30,8 @@
 #include <boost/math/special_functions/fpclassify.hpp>
 #include <limits>
 
+#define MAX_MODEL_SCENES 64
+
 static const std::string DEFAULT_MTL_NAME = "default_mtl";
 static const int default_width = 1280;
 static const int default_height = 720;
@@ -442,21 +444,48 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		set_outworld_day_exposure(ctx);	
 		set_sun(ctx, sun_dir);
 	}
-
-	// Get Camera	
+	
 	SUCameraRef su_cam_ref = SU_INVALID;
-	SUModelGetCamera(model, &su_cam_ref);
-	if(su_cam_ref.ptr)
+	if (1)
 	{
-		EH_Camera eh_cam;
-		convert_to_eh_camera(eh_cam, su_cam_ref);
-
-		EH_set_camera(ctx, &eh_cam);
+		SUModelGetCamera(model, &su_cam_ref);
+		if(su_cam_ref.ptr)
+		{
+			EH_Camera eh_cam;
+			convert_to_eh_camera(eh_cam, su_cam_ref);
+			EH_set_camera(ctx, &eh_cam);
+		}
 	}
 	else
 	{
-		printf("This scene has no active camera!\n");
+		// Get Scenes Camera
+		size_t num_s = 0, realcount = 0;
+		SUModelGetNumScenes(model, &num_s);
+		SUSceneRef scenes[MAX_MODEL_SCENES] = SU_INVALID;
+		res = SUModelGetScenes(model, num_s, scenes, &realcount);
+		for (int index = 0; index < realcount; index++)
+		{
+			SUSceneGetCamera(scenes[index], &su_cam_ref);
+			// --test get scene name
+			/*CSUString s_name;
+			SUSceneGetName(scenes[index], s_name);
+			std::string scene_n = s_name.utf8();*/
+			// --end test
+			if(su_cam_ref.ptr)
+			{
+				EH_Camera eh_cam;
+				convert_to_eh_camera(eh_cam, su_cam_ref);
+
+				char inst_name[128] = "";
+				sprintf(inst_name, "SceneCamera_%d", index);
+				EH_add_camera(ctx, &eh_cam, inst_name);
+			}
+		}
 	}
+	/*else
+	{
+		printf("This scene has no active camera!\n");
+	}*/
 
 	// Get all materials
 	GetAllMaterials(model);	

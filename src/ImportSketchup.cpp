@@ -13,7 +13,7 @@ bool import_mesh_from_skp(const char *file_name, const char *output_filename)
 
 	EH_RenderOptions render_op;
 	render_op.quality = g_skp2ess_set.opt_quality;
-	EH_set_options_name(pContext, std::string("GlobalOptionsName"));
+	EH_set_options_name(pContext, "GlobalOptionsName");
 	EH_set_render_options(pContext, &render_op);
 
 	eiTimer export_ess_timer;

@@ -100,11 +100,16 @@ void setRenderQuality(unsigned int q)
 	}
 }
 
-//int main(int argc, char* argv[])
-//{
-//	setEnviroment(1);
-//	setRenderQuality(1);
-//	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall_test2.skp", "wall_test1", "result", "png", "D:/");
-//	system("pause");
-//	return 0;
-//}
+void setScenes(int *scene_indices, int num)
+{
+
+}
+
+int main(int argc, char* argv[])
+{
+	setEnviroment(1);
+	setRenderQuality(0);
+	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall_test1.skp", "wall_test1", "result", "png", "D:/");
+	system("pause");
+	return 0;
+}
