@@ -5,8 +5,9 @@
 #include <Windows.h>
 
 #define CLOUD_URL "http://render7.vsochina.com:10008"
-#define JOB_STATUS_COMPLETE "4"
 #define JOB_STATUS_RENDER "1"
+#define JOB_STATUS_STOP "2"
+#define JOB_STATUS_COMPLETE "4"
 #define JOB_STATUS_FAILED "7"
 #define CLOUD_CENTER_IP "cbs7.vsochina.com"
 #define SERVER_PORT "33001"
@@ -25,12 +26,18 @@ void callback_upload(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
 	{
 		std::cout << "Transfer complete! Id:" << c.id << std::endl;
 		g_cri.paramTransfer = 1;
-		g_cri.c_state = CLOUD_STATE_WAIT_RENDER;
+		for (int i = 0; i < MAX_MODEL_SCENES; i++)
+		{
+			g_cri.c_state[i] = CLOUD_STATE_WAIT_RENDER;
+		}
 	}
 	else if (c.status == LHDTSDK::LHDT_TS_TRANSFER_FAILURE)
 	{
 		std::cout << "Transfer failed! Id:" << c.id << std::endl;
-		g_cri.c_state = CLOUD_STATE_TRANSFER_FAILED;
+		for (int i = 0; i < MAX_MODEL_SCENES; i++)
+		{
+			g_cri.c_state[i] = CLOUD_STATE_TRANSFER_FAILED;
+		}
 	}
 }
 
@@ -45,12 +52,14 @@ void callback_download(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
 	{
 		std::cout << "Transfer complete! Id:" << c.id << std::endl;
 		g_cri.paramTransfer = 1;
-		g_cri.c_state = CLOUD_STATE_RETURN;
+		g_cri.finished_tasks++;
+		g_cri.c_state[g_cri.cur_download_scene] = CLOUD_STATE_RETURN;
 	}
 	else if (c.status == LHDTSDK::LHDT_TS_TRANSFER_FAILURE)
 	{
 		std::cout << "Transfer failed! Id:" << c.id << std::endl;
-		g_cri.c_state = CLOUD_STATE_TRANSFER_FAILED;
+		g_cri.finished_tasks++;
+		g_cri.c_state[g_cri.cur_download_scene] = CLOUD_STATE_TRANSFER_FAILED;
 	}
 }
 
@@ -102,14 +111,21 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 	if (root["ret"].asInt() != 0)
 	{
 		// 登陆失败
-		g_cri.c_state = CLOUD_STATE_LOGIN_FAILED;
+		for (int i = 0; i < MAX_MODEL_SCENES; i++)
+		{
+			g_cri.c_state[i] = CLOUD_STATE_LOGIN_FAILED;
+		}
 		return 0;
 	}
 	memcpy(username, root["data"]["username"].asString().c_str(), root["data"]["username"].asString().size());
 	memcpy(token, root["data"]["token"].asString().c_str(), root["data"]["token"].asString().size());
+	g_cri.token = token;
 
 	// upload
-	g_cri.c_state = CLOUD_STATE_TRANSFERRING;
+	for (int i = 0; i < MAX_MODEL_SCENES; i++)
+	{
+		g_cri.c_state[i] = CLOUD_STATE_TRANSFERRING;
+	}
 	g_cri.paramTransfer = 0;
     LHDTSDK::LHDTConfig config;
 	config.method = LHDTSDK::ASPERA;
@@ -130,7 +146,6 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 		config.maxUploadRate = g_cri.transferMaxSpeed;
 	}
 
-
 	LHDTSDK::LHDTTask task;
 	task.filename = filename;
     task.local = outputpath;
@@ -141,7 +156,8 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 	return 1;
 }
 
-int submit_task(const char* exePath, const char* filename, const char* outputprefix, const char* outputtype, const char* outputpath, const char* username, const char* token, char* job_id)
+int submit_task(const char* exePath, const char* filename, const char* outputprefix, const char* outputtype, const char* outputpath, const char* username, 
+	const char* token, const char* projectfolder)
 {
 	// sibmit job
 	std::string url_render_task = CLOUD_URL;
@@ -161,7 +177,9 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	url_render_task +=  "\"job_name\":\"";
 	url_render_task +=  filename;
 	url_render_task +=  "\",";
-	url_render_task +=  "\"project_dir\":\"/123/\",";
+	url_render_task +=  "\"project_dir\":\"";
+	url_render_task +=  projectfolder;
+	url_render_task +=  "\",";
 	url_render_task +=  "\"output_dir\":\"/output_image/\",";
 	url_render_task +=  "\"image_width\":\"";
 	url_render_task +=  res_x;
@@ -182,6 +200,25 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	url_render_task +=  "\"stop_frame\":1,";
 	url_render_task +=  "\"by_frame\":1,";
 	url_render_task +=  "\"pool_id\":\"3425c1b338afc5cb1cb0bba1acad553d\"";
+	// handle cameras
+	if (g_skp2ess_set.camera_num > 0)
+	{
+		url_render_task +=  ",";
+		url_render_task += "\"cameras\":[";
+		for (int i = 0; i < MAX_MODEL_SCENES; i++)
+		{
+			if (g_skp2ess_set.cameras_index[i] == true)
+			{
+				char c_i[8] = "";
+				sprintf(c_i, "%d", i);
+				url_render_task += "\"inst_SceneCamera_";
+				url_render_task += c_i;
+				url_render_task += "\",";
+			}
+		}
+		url_render_task.erase(url_render_task.size() - 1, 1);
+		url_render_task += "]";
+	}
 	url_render_task +=  "}";
 	g_cri.ch.post(url_render_task.c_str(), 10008, "");
 
@@ -193,139 +230,235 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 		std::cout<<g_cri.ch.retBuffer<<std::endl;
 		return 2;
 	}
-	memcpy(job_id, root["data"]["job_ids"][0].asString().c_str(), root["data"]["job_ids"][0].asString().size());
+	int max_cameras = max(1, g_skp2ess_set.camera_num);
+	for (int index = 0; index < max_cameras; index++)
+	{
+		g_cri.job_ids[index] = root["data"]["job_ids"][index].asString();
+	}
 	return 0;
 }
 
-int CloudRender(const char* exePath, const char* filename, const char* outputprefix, const char* outputtype, const char* outputpath)
+void stopRenderJobBySceneIndex(int scene_index)
 {
-	g_cri.c_state = CLOUD_STATE_INITIAL;
+	std::string url_stop_render_task = CLOUD_URL;
+	url_stop_render_task += "/api/web/v1/job/stop?";
+	url_stop_render_task += "username=";
+	url_stop_render_task += g_cri.username;
+	url_stop_render_task += "&token=";
+	url_stop_render_task += g_cri.token;
+	url_stop_render_task += "&job_id=";
+	url_stop_render_task += g_cri.job_ids[scene_index];
+	g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+	g_cri.c_state[scene_index] = CLOUD_STATE_STOP;
+}
+
+void resumeRenderJobBySceneIndex(int scene_index)
+{
+	std::string url_stop_render_task = CLOUD_URL;
+	url_stop_render_task += "/api/web/v1/job/recover?";
+	url_stop_render_task += "username=";
+	url_stop_render_task += g_cri.username;
+	url_stop_render_task += "&token=";
+	url_stop_render_task += g_cri.token;
+	url_stop_render_task += "&job_id=";
+	url_stop_render_task += g_cri.job_ids[scene_index];
+	g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+	g_cri.c_state[scene_index] = CLOUD_STATE_WAIT_RENDER;
+}
+
+void restartRenderJobBySceneIndex(int scene_index)
+{
+	std::string url_stop_render_task = CLOUD_URL;
+	url_stop_render_task += "/api/web/v1/job/restart?";
+	url_stop_render_task += "username=";
+	url_stop_render_task += g_cri.username;
+	url_stop_render_task += "&token=";
+	url_stop_render_task += g_cri.token;
+	url_stop_render_task += "&job_id=";
+	url_stop_render_task += g_cri.job_ids[scene_index];
+	g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+}
+
+void abandonRenderJobBySceneIndex(int scene_index)
+{
+	std::string url_stop_render_task = CLOUD_URL;
+	url_stop_render_task += "/api/web/v1/job/delete?";
+	url_stop_render_task += "username=";
+	url_stop_render_task += g_cri.username;
+	url_stop_render_task += "&token=";
+	url_stop_render_task += g_cri.token;
+	url_stop_render_task += "&job_id=";
+	url_stop_render_task += g_cri.job_ids[scene_index];
+	g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+	g_cri.c_state[scene_index] = CLOUD_STATE_UNFIND;
+}
+
+int CloudRender(const char* exePath, const char* filename, const char* outputprefix, const char* outputtype, const char* outputpath, const char* projectfolder)
+{
+	for (int i = 0; i < MAX_MODEL_SCENES; i++)
+	{
+		g_cri.c_state[i] = CLOUD_STATE_INITIAL;
+	}
 	char username[128] = "";
 	char token[128] = "";
-	char job_id[128] = "";
 	if (!upload_ess(exePath, filename, outputprefix, outputtype, outputpath, username, token))
 	{
 		return 1;
 	}
 
 	// waiting upload
-	while (g_cri.c_state <= CLOUD_STATE_TRANSFERRING)
+	while (g_cri.c_state[0] <= CLOUD_STATE_TRANSFERRING)
 	{
 		Sleep(2000);
 	}
 	
 	//g_cri.api.UnInitial();
-	if (g_cri.c_state == CLOUD_STATE_TRANSFER_FAILED)
+	if (g_cri.c_state[0] == CLOUD_STATE_TRANSFER_FAILED)
 	{
 		return 1;
 	}
 
-	submit_task(exePath, filename, outputprefix, outputtype, outputpath, username, token, job_id);
+	submit_task(exePath, filename, outputprefix, outputtype, outputpath, username, token, projectfolder);
 	
-	Json::Value root;
-	Json::Reader reader;
-	std::string job_status = "0";
-	std::string url_job_info = CLOUD_URL;
-	url_job_info +=  "/api/web/v1/job/info?";
-	url_job_info +=  "username=";
-	url_job_info +=  username;
-	url_job_info +=  "&token=";
-	url_job_info +=  token;
-	url_job_info +=  "&job_id=";
-	url_job_info +=  job_id;
-	do{
-		Sleep(30000);
-		g_cri.ch.get(url_job_info.c_str(), 10008);
-		if(!reader.parse(g_cri.ch.retBuffer, root))
-		{
-			std::cout<<"return json error."<<std::endl;
-			std::cout<<g_cri.ch.retBuffer<<std::endl;
-			return 2;
-		}
-		job_status = root["data"]["job_status"].asString();
-		std::cout << "job_status:" << job_status << std::endl;
-		if (job_status == JOB_STATUS_RENDER)
-		{
-			g_cri.c_state = CLOUD_STATE_RENDERING;
-		}
-	} while(job_status != JOB_STATUS_COMPLETE && job_status != JOB_STATUS_FAILED);
-
-	if (job_status == JOB_STATUS_FAILED)
+	int max_cameras = max(1, g_skp2ess_set.camera_num);
+	std::string url_job_info[MAX_MODEL_SCENES];
+	std::string url_output_file[MAX_MODEL_SCENES];
+	for (int index = 0; index < max_cameras; index++)
 	{
-		std::cout<<"job failed!"<<std::endl;
-		return 3;
+		url_job_info[index] = CLOUD_URL;
+		url_job_info[index] +=  "/api/web/v1/job/info?";
+		url_job_info[index] +=  "username=";
+		url_job_info[index] +=  username;
+		url_job_info[index] +=  "&token=";
+		url_job_info[index] +=  token;
+		url_job_info[index] +=  "&job_id=";
+		url_job_info[index] +=  g_cri.job_ids[index];
+
+		url_output_file[index] = CLOUD_URL;
+		url_output_file[index] += "/api/web/v1/job/output_files2?";
+		url_output_file[index] +=  "username=";
+		url_output_file[index] +=  username;
+		url_output_file[index] +=  "&token=";
+		url_output_file[index] +=  token;
+		url_output_file[index] +=  "&job_id=";
+		url_output_file[index] +=  g_cri.job_ids[index];
 	}
-
-	g_cri.c_state = CLOUD_STATE_WAITING_OUTPUT;
-
-	// get output file
-	std::string output_path;
-	std::string url_output_file = CLOUD_URL;
-	url_output_file += "/api/web/v1/job/output_files2?";
-	url_output_file +=  "username=";
-	url_output_file +=  username;
-	url_output_file +=  "&token=";
-	url_output_file +=  token;
-	url_output_file +=  "&job_id=";
-	url_output_file +=  job_id;
-
-	do{
-		g_cri.ch.get(url_output_file.c_str(), 10008);
-		if(!reader.parse(g_cri.ch.retBuffer, root))
-		{
-			std::cout<<"return json error."<<std::endl;
-			std::cout<<g_cri.ch.retBuffer<<std::endl;
-			return 2;
-		}
-		if (root["data"]["status"].asInt() == 1)
-		{
-			output_path = root["data"]["files"][0]["file"].asString();
-		}
-		else
-		{
-			Sleep(10000);
-		}
-	} while(root["data"]["status"].asInt() != 1);
-
-	// download output file
-	g_cri.c_state = CLOUD_STATE_DOWNLOADING;
-	g_cri.paramTransfer = 0;
-	std::string outfilename;
-	std::string outfilefolder;
-	LHDTSDK::LHDTTask task_download;
-	extractFilePath(output_path, outfilename, outfilefolder);
-	task_download.filename = outfilename.c_str();
-    task_download.local = outputpath;
-    task_download.remote = outfilefolder.c_str();
-    task_download.type = LHDTSDK::LHDTTransferType::LHDT_TT_DOWNLOAD; // 上传 or 下载
-    task_download.callback = callback_download; // 回调函数
-
-	/// 以下信息从web api的 domain接口获取
+	
+	// 以下信息从web api的 domain接口获取
 	LHDTSDK::LHDTConfig config;
 	config.method = LHDTSDK::ASPERA;
-    config.serverId = 7; // 分中心Id
-    config.serverIp = CLOUD_CENTER_IP; // 分中心服务器Ip
-    config.serverPort = SERVER_PORT; // 传输端口
-    config.retryCount = 3; // 重试次数
-    config.app = "GF"; // app名 GF=GoldenFarm
-    config.appVersion = "2.0.0"; // 传输协议版本
+	config.serverId = 7; // 分中心Id
+	config.serverIp = CLOUD_CENTER_IP; // 分中心服务器Ip
+	config.serverPort = SERVER_PORT; // 传输端口
+	config.retryCount = 3; // 重试次数
+	config.app = "GF"; // app名 GF=GoldenFarm
+	config.appVersion = "2.0.0"; // 传输协议版本
 	if (g_cri.transferMaxSpeed > 0)
 	{
 		config.maxDownloadRate = g_cri.transferMaxSpeed;
 	}
 
-	executeTask(task_download, config, exePath);
-	
-	// waiting upload
-	while (g_cri.c_state <= CLOUD_STATE_DOWNLOADING)
+	// get scene index for task index
+	int *scene_index_to_task_index = new int[max_cameras];
+	for (int i = 0, j = 0; i < MAX_MODEL_SCENES; i++)
 	{
-		Sleep(2000);
+		if (g_skp2ess_set.cameras_index[i] == true)
+		{
+			scene_index_to_task_index[j] = i;
+			j++;
+		}
+
+		if (j >= max_cameras) 
+			break;
 	}
+
+	int finish_render[MAX_MODEL_SCENES] = {false};
+	int finished_render_task = 0;
+	do{
+		finished_render_task = 0;
+		for (int index = 0; index < max_cameras; index++)
+		{
+			if (finish_render[index])
+			{
+				finished_render_task++;
+				continue;
+			}
+
+			if (g_cri.c_state[scene_index_to_task_index[index]] == CLOUD_STATE_UNFIND)
+			{
+				finish_render[index] = true;
+				g_cri.finished_tasks++;
+			}
+
+			Json::Value root;
+			Json::Reader reader;
+			std::string job_status = "0";
+			g_cri.ch.get(url_job_info[index].c_str(), 10008);
+			if(!reader.parse(g_cri.ch.retBuffer, root))
+			{
+				std::cout<<"return json error."<<std::endl;
+				std::cout<<g_cri.ch.retBuffer<<std::endl;
+				return 2;
+			}
+			job_status = root["data"]["job_status"].asString();
+			g_cri.jobwork_ids[scene_index_to_task_index[index]] = root["data"]["job_id"].asString();
+			std::cout << "job_status:" << job_status << std::endl;
+			if (job_status == JOB_STATUS_RENDER)
+			{
+				g_cri.c_state[scene_index_to_task_index[index]] = CLOUD_STATE_RENDERING;
+			}
+			else if (job_status == JOB_STATUS_STOP)
+			{
+				g_cri.c_state[scene_index_to_task_index[index]] = CLOUD_STATE_STOP;
+			}
+			else if (job_status == JOB_STATUS_COMPLETE)
+			{
+				// get output file
+				g_cri.c_state[scene_index_to_task_index[index]] = CLOUD_STATE_WAITING_OUTPUT;
+				std::string output_path;
+				g_cri.ch.get(url_output_file[index].c_str(), 10008);
+				if(!reader.parse(g_cri.ch.retBuffer, root))
+				{
+					std::cout<<"return json error."<<std::endl;
+					std::cout<<g_cri.ch.retBuffer<<std::endl;
+				}
+				if (root["data"]["status"].asInt() == 1)
+				{
+					// download file
+					finish_render[index] = true;
+					g_cri.c_state[scene_index_to_task_index[index]] = CLOUD_STATE_DOWNLOADING;
+					g_cri.cur_download_scene = scene_index_to_task_index[index];
+					char index_s[16] = "";
+					sprintf(index_s, "%d", index);
+					output_path = root["data"]["files"][0]["file"].asString();
+					g_cri.paramTransfer = 0;
+					std::string outfilename;
+					std::string outfilefolder;
+					LHDTSDK::LHDTTask task_download;
+					extractFilePath(output_path, outfilename, outfilefolder);
+					task_download.filename = outfilename.c_str();
+					task_download.local = outputpath;
+					task_download.remote = outfilefolder.c_str();
+					task_download.type = LHDTSDK::LHDTTransferType::LHDT_TT_DOWNLOAD; // 上传 or 下载
+					task_download.callback = callback_download; // 回调函数
+
+					executeTask(task_download, config, exePath);
+				}
+			}
+			else if (job_status == JOB_STATUS_FAILED)
+			{
+				g_cri.finished_tasks++;
+				std::cout<<"job failed!"<<std::endl;
+				g_cri.c_state[scene_index_to_task_index[index]] = CLOUD_STATE_RENDER_FAILED;
+			}
+		}
+		if(g_cri.finished_tasks < max_cameras)
+		{
+			Sleep(30000);
+		}
+	} while(g_cri.finished_tasks < max_cameras);
 	
+	delete[] scene_index_to_task_index;
 	g_cri.api.UnInitial();
-	if (g_cri.c_state == CLOUD_STATE_TRANSFER_FAILED)
-	{
-		return 1;
-	}
     return 0;
 }

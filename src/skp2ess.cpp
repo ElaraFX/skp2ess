@@ -22,33 +22,6 @@
 #include "CloudRender.h"
 #include "skp2ess.h"
 
-int skpCloudRender(const char* exePath, const char* filename, const char* projectname, const char* outputprefix, const char* outputtype, const char* outputpath)
-{
-	int ret = 0;
-	std::string ess_filepath(outputpath);
-	if (ess_filepath[ess_filepath.size() - 1] != '/' && ess_filepath[ess_filepath.size() - 1] != '\\')
-	{
-		ess_filepath += '/';
-	}
-	ess_filepath += projectname;
-	ess_filepath += ".ess";
-	g_material_container.SetProjectName(projectname);
-	if (!import_mesh_from_skp(filename, ess_filepath.c_str()))
-	{
-		return 1;
-	}
-
-	std::string ess_filename(projectname);
-	ess_filename += ".ess";
-	ret = CloudRender(exePath, ess_filename.c_str(), outputprefix, outputtype, outputpath);
-	if (ret > 0)
-	{
-		ret += 1;
-	}
-
-	return ret;
-}
-
 void setResolution(int x, int y)
 {
 	g_cri.res_x = x;
@@ -61,21 +34,28 @@ void setUsernamePassword(const char *username, const char *password)
 	g_cri.password = password;
 }
 
-void getState(unsigned int *state, float *param)
+void getState(int scene_index, unsigned int *state, float *param)
 {
-	*state = g_cri.c_state;
 	*param = 0;
-	if (g_cri.c_state == CLOUD_STATE_TRANSFERRING)
+	if (g_skp2ess_set.cameras_index[scene_index])
 	{
-		*param = g_cri.paramTransfer;
-	}
-	else if (g_cri.c_state == CLOUD_STATE_DOWNLOADING)
-	{
-		*param = g_cri.paramTransfer;
-	}
-	else if (g_cri.c_state == CLOUD_STATE_RENDERING)
-	{
+		*state = g_cri.c_state[scene_index];
+		if (g_cri.c_state[scene_index] == CLOUD_STATE_TRANSFERRING)
+		{
+			*param = g_cri.paramTransfer;
+		}
+		else if (g_cri.c_state[scene_index] == CLOUD_STATE_DOWNLOADING)
+		{
+			*param = g_cri.paramTransfer;
+		}
+		else if (g_cri.c_state[scene_index] == CLOUD_STATE_RENDERING)
+		{
 
+		}
+	}
+	else
+	{
+		*state = CLOUD_STATE_UNFIND;
 	}
 }
 
@@ -92,6 +72,14 @@ void setEnviroment(unsigned int t)
 	}
 }
 
+void setCameraType(unsigned int t)
+{
+	if (t < CT_MAX)
+	{
+		g_skp2ess_set.camera_type = CAMERA_TYPE(t);
+	}
+}
+
 void setRenderQuality(unsigned int q)
 {
 	if (q <= EH_DEFAULT)
@@ -102,14 +90,96 @@ void setRenderQuality(unsigned int q)
 
 void setScenes(int *scene_indices, int num)
 {
-
+	g_skp2ess_set.camera_num = num;
+	memset(&g_skp2ess_set.cameras_index, false, num * sizeof(bool));
+	for (int k = 0; k < g_skp2ess_set.camera_num; k++)
+	{
+		g_skp2ess_set.cameras_index[scene_indices[k]] = true;
+	}
 }
 
-int main(int argc, char* argv[])
+void stopRenderJob(int scene_index)
 {
-	setEnviroment(1);
-	setRenderQuality(0);
-	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall_test1.skp", "wall_test1", "result", "png", "D:/");
-	system("pause");
-	return 0;
+	stopRenderJobBySceneIndex(scene_index);
 }
+
+void deleteRenderJob(int scene_index)
+{
+	abandonRenderJobBySceneIndex(scene_index);
+}
+
+void restartRenderJob(int scene_index)
+{
+	restartRenderJobBySceneIndex(scene_index);
+}
+
+void resumeRenderJob(int scene_index)
+{
+	resumeRenderJobBySceneIndex(scene_index);
+}
+
+bool getJobID(int scene_index, char *job_id)
+{
+	if (g_skp2ess_set.cameras_index[scene_index])
+	{
+		int size = g_cri.job_ids[scene_index].size();
+		memcpy(job_id, g_cri.job_ids[scene_index].c_str(), sizeof(char) * size);
+		job_id[size] = '\0';
+		return true;
+	}
+
+	return false;
+}
+
+bool getJobWorkID(int scene_index, char *jobwork_id)
+{
+	if (g_skp2ess_set.cameras_index[scene_index])
+	{
+		int size = g_cri.jobwork_ids[scene_index].size();
+		memcpy(jobwork_id, g_cri.jobwork_ids[scene_index].c_str(), sizeof(char) * size);
+		jobwork_id[size] = '\0';
+		return true;
+	}
+
+	return false;
+}
+
+int skpCloudRender(const char* exePath, const char* filename, const char* projectname, const char* outputprefix, const char* outputtype, const char* outputpath, const char* projectfolder)
+{
+	int ret = 0;
+	std::string ess_filepath(outputpath);
+	if (ess_filepath[ess_filepath.size() - 1] != '/' && ess_filepath[ess_filepath.size() - 1] != '\\')
+	{
+		ess_filepath += '/';
+	}
+	ess_filepath += projectname;
+	ess_filepath += ".ess";
+	g_material_container.SetProjectName(projectname);
+	if (!import_mesh_from_skp(filename, ess_filepath.c_str()))
+	{
+		return 1;
+	}
+	
+	std::string ess_filename(projectname);
+	ess_filename += ".ess";
+	ret = CloudRender(exePath, ess_filename.c_str(), outputprefix, outputtype, outputpath, projectfolder);
+	if (ret > 0)
+	{
+		ret += 1;
+	}
+
+	return ret;
+}
+
+//int main(int argc, char* argv[])
+//{
+//	//setEnviroment(0);
+//	//setRenderQuality(0);
+//	setResolution(1469, 869);
+//	int scenes[4] = {0,1,2,3};
+//	setScenes(scenes, 2);
+//	//setCameraType(1);
+//	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall1.skp", "test_x", "result", "png", "D:/", "/");
+//	system("pause");
+//	return 0;
+//}

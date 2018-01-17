@@ -30,8 +30,6 @@
 #include <boost/math/special_functions/fpclassify.hpp>
 #include <limits>
 
-#define MAX_MODEL_SCENES 64
-
 static const std::string DEFAULT_MTL_NAME = "default_mtl";
 static const int default_width = 1280;
 static const int default_height = 720;
@@ -446,14 +444,26 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	}
 	
 	SUCameraRef su_cam_ref = SU_INVALID;
-	if (1)
+	if (g_skp2ess_set.camera_num <= 0)
 	{
 		SUModelGetCamera(model, &su_cam_ref);
 		if(su_cam_ref.ptr)
 		{
 			EH_Camera eh_cam;
 			convert_to_eh_camera(eh_cam, su_cam_ref);
+			if (g_skp2ess_set.camera_type == CT_CUBEMAP)
+			{
+				eh_cam.cubemap_render = true;
+			}
+			else if (g_skp2ess_set.camera_type == CT_SPHERICAL)
+			{
+				eh_cam.spherical_render = true;
+			}
 			EH_set_camera(ctx, &eh_cam);
+		}
+		else
+		{
+			printf("This scene has no active camera!\n");
 		}
 	}
 	else
@@ -473,8 +483,21 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 			// --end test
 			if(su_cam_ref.ptr)
 			{
+				if (!g_skp2ess_set.cameras_index[index])
+				{
+					continue;
+				}
+
 				EH_Camera eh_cam;
 				convert_to_eh_camera(eh_cam, su_cam_ref);
+				if (g_skp2ess_set.camera_type == CT_CUBEMAP)
+				{
+					eh_cam.cubemap_render = true;
+				}
+				else if (g_skp2ess_set.camera_type == CT_SPHERICAL)
+				{
+					eh_cam.spherical_render = true;
+				}
 
 				char inst_name[128] = "";
 				sprintf(inst_name, "SceneCamera_%d", index);
@@ -482,10 +505,6 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 			}
 		}
 	}
-	/*else
-	{
-		printf("This scene has no active camera!\n");
-	}*/
 
 	// Get all materials
 	GetAllMaterials(model);	
