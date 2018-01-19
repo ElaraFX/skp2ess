@@ -15,6 +15,34 @@
 
 cloud_render_info g_cri;
 
+std::string string_To_UTF8(const std::string & str)
+{
+  int nwLen = ::MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, NULL, 0);
+
+  wchar_t * pwBuf = new wchar_t[nwLen + 1];//一定要加1，不然会出现尾巴  
+  ZeroMemory(pwBuf, nwLen * 2 + 2);
+
+  ::MultiByteToWideChar(CP_ACP, 0, str.c_str(), str.length(), pwBuf, nwLen);
+
+  int nLen = ::WideCharToMultiByte(CP_UTF8, 0, pwBuf, -1, NULL, NULL, NULL, NULL);
+
+  char * pBuf = new char[nLen + 1];
+  ZeroMemory(pBuf, nLen + 1);
+
+  ::WideCharToMultiByte(CP_UTF8, 0, pwBuf, nwLen, pBuf, nLen, NULL, NULL);
+
+  std::string retStr(pBuf);
+
+  delete[]pwBuf;
+  delete[]pBuf;
+
+  pwBuf = NULL;
+  pBuf = NULL;
+
+  return retStr;
+}
+
+
 void callback_upload(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
 {
     if (c.status == LHDTSDK::LHDT_TS_TRANSFERRING)
@@ -147,7 +175,7 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 	}
 
 	LHDTSDK::LHDTTask task;
-	task.filename = filename;
+	task.filename = string_To_UTF8(filename).c_str();
     task.local = outputpath;
     task.remote = REMOTE_PATH;
     task.type = LHDTSDK::LHDTTransferType::LHDT_TT_UPLOAD; // 上传 or 下载
@@ -240,30 +268,36 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 
 void stopRenderJobBySceneIndex(int scene_index)
 {
-	std::string url_stop_render_task = CLOUD_URL;
-	url_stop_render_task += "/api/web/v1/job/stop?";
-	url_stop_render_task += "username=";
-	url_stop_render_task += g_cri.username;
-	url_stop_render_task += "&token=";
-	url_stop_render_task += g_cri.token;
-	url_stop_render_task += "&job_id=";
-	url_stop_render_task += g_cri.job_ids[scene_index];
-	g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
-	g_cri.c_state[scene_index] = CLOUD_STATE_STOP;
+	if (g_cri.c_state[scene_index] == CLOUD_STATE_WAIT_RENDER || g_cri.c_state[scene_index] == CLOUD_STATE_RENDERING)
+	{
+		std::string url_stop_render_task = CLOUD_URL;
+		url_stop_render_task += "/api/web/v1/job/stop?";
+		url_stop_render_task += "username=";
+		url_stop_render_task += g_cri.username;
+		url_stop_render_task += "&token=";
+		url_stop_render_task += g_cri.token;
+		url_stop_render_task += "&job_id=";
+		url_stop_render_task += g_cri.job_ids[scene_index];
+		g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+		g_cri.c_state[scene_index] = CLOUD_STATE_STOP;
+	}
 }
 
 void resumeRenderJobBySceneIndex(int scene_index)
 {
-	std::string url_stop_render_task = CLOUD_URL;
-	url_stop_render_task += "/api/web/v1/job/recover?";
-	url_stop_render_task += "username=";
-	url_stop_render_task += g_cri.username;
-	url_stop_render_task += "&token=";
-	url_stop_render_task += g_cri.token;
-	url_stop_render_task += "&job_id=";
-	url_stop_render_task += g_cri.job_ids[scene_index];
-	g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
-	g_cri.c_state[scene_index] = CLOUD_STATE_WAIT_RENDER;
+	if (g_cri.c_state[scene_index] == CLOUD_STATE_STOP)
+	{
+		std::string url_stop_render_task = CLOUD_URL;
+		url_stop_render_task += "/api/web/v1/job/recover?";
+		url_stop_render_task += "username=";
+		url_stop_render_task += g_cri.username;
+		url_stop_render_task += "&token=";
+		url_stop_render_task += g_cri.token;
+		url_stop_render_task += "&job_id=";
+		url_stop_render_task += g_cri.job_ids[scene_index];
+		g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+		g_cri.c_state[scene_index] = CLOUD_STATE_WAIT_RENDER;
+	}
 }
 
 void restartRenderJobBySceneIndex(int scene_index)
@@ -281,16 +315,19 @@ void restartRenderJobBySceneIndex(int scene_index)
 
 void abandonRenderJobBySceneIndex(int scene_index)
 {
-	std::string url_stop_render_task = CLOUD_URL;
-	url_stop_render_task += "/api/web/v1/job/delete?";
-	url_stop_render_task += "username=";
-	url_stop_render_task += g_cri.username;
-	url_stop_render_task += "&token=";
-	url_stop_render_task += g_cri.token;
-	url_stop_render_task += "&job_id=";
-	url_stop_render_task += g_cri.job_ids[scene_index];
-	g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
-	g_cri.c_state[scene_index] = CLOUD_STATE_UNFIND;
+	if (g_cri.c_state[scene_index] == CLOUD_STATE_WAIT_RENDER || g_cri.c_state[scene_index] == CLOUD_STATE_RENDERING)
+	{
+		std::string url_stop_render_task = CLOUD_URL;
+		url_stop_render_task += "/api/web/v1/job/delete?";
+		url_stop_render_task += "username=";
+		url_stop_render_task += g_cri.username;
+		url_stop_render_task += "&token=";
+		url_stop_render_task += g_cri.token;
+		url_stop_render_task += "&job_id=";
+		url_stop_render_task += g_cri.job_ids[scene_index];
+		g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+		g_cri.c_state[scene_index] = CLOUD_STATE_UNFIND;
+	}
 }
 
 int CloudRender(const char* exePath, const char* filename, const char* outputprefix, const char* outputtype, const char* outputpath, const char* projectfolder)
