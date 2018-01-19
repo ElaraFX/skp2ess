@@ -62,6 +62,10 @@ struct cloud_render_info
 		password = "a123456";
 		finished_tasks = 0;
 	}
+	void initial(char *exePath)
+	{
+		api.Initial(exePath);
+	}
 };
 
 extern cloud_render_info g_cri;

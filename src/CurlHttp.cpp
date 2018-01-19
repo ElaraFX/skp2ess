@@ -1,5 +1,4 @@
-#include "CurlHttp.h"
-#include <iostream>
+﻿#include "CurlHttp.h"
 
 
 
@@ -50,12 +49,22 @@ void CurlHttp::get(const char *url, const int port)
 	curl = NULL;
 }
 
+std::string CurlHttp::escape(std::string s)
+{	
+	CURL *curl = curl_easy_init();
+	std::string out = curl_easy_escape(curl, s.c_str(), s.size());
+	curl_easy_cleanup(curl);
+	curl = NULL;
+	return out;
+}
+
 void CurlHttp::post(const char *url, const int port, const char *postJsonStr)
 {	
 	CURL *curl = curl_easy_init();
 
 	struct curl_slist *headSlist = NULL;
 	headSlist = curl_slist_append(headSlist, "Content-Type: application/json");
+	curl_slist_append(headSlist, "Content-Type: application/x-www-form-urlencoded; charset=UTF-8");
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headSlist);
 
 	curl_easy_setopt(curl, CURLOPT_URL, url);

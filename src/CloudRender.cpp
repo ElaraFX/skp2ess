@@ -1,4 +1,4 @@
-#include "CloudRender.h"
+ï»¿#include "CloudRender.h"
 #include "jsoncpp/json/json.h"
 #include "lhdt_sdk.h"
 #include "UploadCloud.h"
@@ -19,7 +19,7 @@ std::string string_To_UTF8(const std::string & str)
 {
   int nwLen = ::MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, NULL, 0);
 
-  wchar_t * pwBuf = new wchar_t[nwLen + 1];//Ò»¶¨Òª¼Ó1£¬²»È»»á³öÏÖÎ²°Í  
+  wchar_t * pwBuf = new wchar_t[nwLen + 1];//ä¸€å®šè¦åŠ 1ï¼Œä¸ç„¶ä¼šå‡ºç°å°¾å·´  
   ZeroMemory(pwBuf, nwLen * 2 + 2);
 
   ::MultiByteToWideChar(CP_ACP, 0, str.c_str(), str.length(), pwBuf, nwLen);
@@ -41,7 +41,6 @@ std::string string_To_UTF8(const std::string & str)
 
   return retStr;
 }
-
 
 void callback_upload(LHDTSDK::LHDTCallback c, LHDTSDK::LHDTTask t)
 {
@@ -138,7 +137,7 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 	}
 	if (root["ret"].asInt() != 0)
 	{
-		// µÇÂ½Ê§°Ü
+		// ç™»é™†å¤±è´¥
 		for (int i = 0; i < MAX_MODEL_SCENES; i++)
 		{
 			g_cri.c_state[i] = CLOUD_STATE_LOGIN_FAILED;
@@ -154,32 +153,39 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 	{
 		g_cri.c_state[i] = CLOUD_STATE_TRANSFERRING;
 	}
+	
+	// init
+	char *buf = new char[strlen(exePath)+1];
+	strcpy(buf, exePath);
+	g_cri.initial(buf);
+	delete[] buf;
+
 	g_cri.paramTransfer = 0;
     LHDTSDK::LHDTConfig config;
 	config.method = LHDTSDK::ASPERA;
  
-    /// ´«Êä¸ùÂ·¾¶ Í¨¹ıweb apiµÇÂ¼½Ó¿Ú»ñÈ¡
+    /// ä¼ è¾“æ ¹è·¯å¾„ é€šè¿‡web apiç™»å½•æ¥å£è·å–
     config.rootPath = root["data"]["path"].asString().c_str(); 
-    config.userName = root["data"]["username"].asString().c_str(); // µÇÂ¼Ãû
+    config.userName = root["data"]["username"].asString().c_str(); // ç™»å½•å
 
-    /// ÒÔÏÂĞÅÏ¢´Óweb apiµÄ domain½Ó¿Ú»ñÈ¡
-    config.serverId = 7; // ·ÖÖĞĞÄId
-    config.serverIp = CLOUD_CENTER_IP; // ·ÖÖĞĞÄ·şÎñÆ÷Ip
-    config.serverPort = SERVER_PORT; // ´«Êä¶Ë¿Ú
-    config.retryCount = 3; // ÖØÊÔ´ÎÊı
-    config.app = "GF"; // appÃû GF=GoldenFarm
-    config.appVersion = "2.0.0"; // ´«ÊäĞ­Òé°æ±¾
+    /// ä»¥ä¸‹ä¿¡æ¯ä»web apiçš„ domainæ¥å£è·å–
+    config.serverId = 7; // åˆ†ä¸­å¿ƒId
+    config.serverIp = CLOUD_CENTER_IP; // åˆ†ä¸­å¿ƒæœåŠ¡å™¨Ip
+    config.serverPort = SERVER_PORT; // ä¼ è¾“ç«¯å£
+    config.retryCount = 3; // é‡è¯•æ¬¡æ•°
+    config.app = "GF"; // appå GF=GoldenFarm
+    config.appVersion = "2.0.0"; // ä¼ è¾“åè®®ç‰ˆæœ¬
 	if (g_cri.transferMaxSpeed > 0)
 	{
 		config.maxUploadRate = g_cri.transferMaxSpeed;
 	}
 
 	LHDTSDK::LHDTTask task;
-	task.filename = string_To_UTF8(filename).c_str();
+	task.filename = filename;
     task.local = outputpath;
     task.remote = REMOTE_PATH;
-    task.type = LHDTSDK::LHDTTransferType::LHDT_TT_UPLOAD; // ÉÏ´« or ÏÂÔØ
-    task.callback = callback_upload; // »Øµ÷º¯Êı
+    task.type = LHDTSDK::LHDTTransferType::LHDT_TT_UPLOAD; // ä¸Šä¼  or ä¸‹è½½
+    task.callback = callback_upload; // å›è°ƒå‡½æ•°
 	executeTask(task, config, exePath);
 	return 1;
 }
@@ -192,6 +198,7 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	char res_x[32] = "", res_y[32] = "";
 	sprintf(res_x, "%d", g_cri.res_x);
 	sprintf(res_y, "%d", g_cri.res_y);
+	std::string filename_encoded = g_cri.ch.escape(string_To_UTF8(filename));
 	url_render_task +=  "/api/web/v1/job/submit?";
 	url_render_task +=  "username=";
 	url_render_task +=  username;
@@ -199,11 +206,12 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	url_render_task +=  token;
 	url_render_task +=  "&job={";
 	url_render_task +=  "\"guid\":\"Elara\",";
-	url_render_task +=  "\"scene_file\":\"/123/";
-	url_render_task +=  filename;
+	url_render_task +=  "\"scene_file\":\"";
+	url_render_task +=  REMOTE_PATH;
+	url_render_task +=  filename_encoded;
 	url_render_task +=  "\",";
 	url_render_task +=  "\"job_name\":\"";
-	url_render_task +=  filename;
+	url_render_task +=  filename_encoded;
 	url_render_task +=  "\",";
 	url_render_task +=  "\"project_dir\":\"";
 	url_render_task +=  projectfolder;
@@ -228,6 +236,7 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	url_render_task +=  "\"stop_frame\":1,";
 	url_render_task +=  "\"by_frame\":1,";
 	url_render_task +=  "\"pool_id\":\"3425c1b338afc5cb1cb0bba1acad553d\"";
+
 	// handle cameras
 	if (g_skp2ess_set.camera_num > 0)
 	{
@@ -251,7 +260,7 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	g_cri.ch.post(url_render_task.c_str(), 10008, "");
 
 	Json::Value root;
-	Json::Reader reader;
+	Json::Reader reader;	
 	if(!reader.parse(g_cri.ch.retBuffer, root))
 	{
 		std::cout<<"return json error."<<std::endl;
@@ -338,7 +347,8 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 	}
 	char username[128] = "";
 	char token[128] = "";
-	if (!upload_ess(exePath, filename, outputprefix, outputtype, outputpath, username, token))
+	std::string essFilename = string_To_UTF8(filename);
+	if (!upload_ess(exePath, essFilename.c_str(), outputprefix, outputtype, outputpath, username, token))
 	{
 		return 1;
 	}
@@ -381,15 +391,15 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 		url_output_file[index] +=  g_cri.job_ids[index];
 	}
 	
-	// ÒÔÏÂĞÅÏ¢´Óweb apiµÄ domain½Ó¿Ú»ñÈ¡
+	// ä»¥ä¸‹ä¿¡æ¯ä»web apiçš„ domainæ¥å£è·å–
 	LHDTSDK::LHDTConfig config;
 	config.method = LHDTSDK::ASPERA;
-	config.serverId = 7; // ·ÖÖĞĞÄId
-	config.serverIp = CLOUD_CENTER_IP; // ·ÖÖĞĞÄ·şÎñÆ÷Ip
-	config.serverPort = SERVER_PORT; // ´«Êä¶Ë¿Ú
-	config.retryCount = 3; // ÖØÊÔ´ÎÊı
-	config.app = "GF"; // appÃû GF=GoldenFarm
-	config.appVersion = "2.0.0"; // ´«ÊäĞ­Òé°æ±¾
+	config.serverId = 7; // åˆ†ä¸­å¿ƒId
+	config.serverIp = CLOUD_CENTER_IP; // åˆ†ä¸­å¿ƒæœåŠ¡å™¨Ip
+	config.serverPort = SERVER_PORT; // ä¼ è¾“ç«¯å£
+	config.retryCount = 3; // é‡è¯•æ¬¡æ•°
+	config.app = "GF"; // appå GF=GoldenFarm
+	config.appVersion = "2.0.0"; // ä¼ è¾“åè®®ç‰ˆæœ¬
 	if (g_cri.transferMaxSpeed > 0)
 	{
 		config.maxDownloadRate = g_cri.transferMaxSpeed;
@@ -476,8 +486,8 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 					task_download.filename = outfilename.c_str();
 					task_download.local = outputpath;
 					task_download.remote = outfilefolder.c_str();
-					task_download.type = LHDTSDK::LHDTTransferType::LHDT_TT_DOWNLOAD; // ÉÏ´« or ÏÂÔØ
-					task_download.callback = callback_download; // »Øµ÷º¯Êı
+					task_download.type = LHDTSDK::LHDTTransferType::LHDT_TT_DOWNLOAD; // ä¸Šä¼  or ä¸‹è½½
+					task_download.callback = callback_download; // å›è°ƒå‡½æ•°
 
 					executeTask(task_download, config, exePath);
 				}

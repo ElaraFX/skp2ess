@@ -4,6 +4,7 @@
 #include <curl.h>
 #define MAX_RET_BUFFER 10000
 
+#include <iostream>
 
 class CurlHttp
 {
@@ -16,6 +17,7 @@ public:
 	void init();	
 	void get(const char *url, const int port);
 	void post(const char *url, const int port, const char *postJsonStr);
+	std::string escape(std::string s);
 };
 
 #endif
