@@ -199,6 +199,7 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	sprintf(res_x, "%d", g_cri.res_x);
 	sprintf(res_y, "%d", g_cri.res_y);
 	std::string filename_encoded = g_cri.ch.escape(string_To_UTF8(filename));
+	std::string prefix_encoded = g_cri.ch.escape(string_To_UTF8(outputprefix));
 	url_render_task +=  "/api/web/v1/job/submit?";
 	url_render_task +=  "username=";
 	url_render_task +=  username;
@@ -227,7 +228,7 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	url_render_task +=  outputtype;
 	url_render_task +=  "\",";
 	url_render_task +=  "\"filename_prefix\":\"";
-	url_render_task +=  outputprefix;
+	url_render_task +=  prefix_encoded;
 	url_render_task +=  "\",";
 	url_render_task +=  "\"do_analysis\":true,";
 	url_render_task +=  "\"priority\":\"50\",";
@@ -488,7 +489,7 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 					task_download.remote = outfilefolder.c_str();
 					task_download.type = LHDTSDK::LHDTTransferType::LHDT_TT_DOWNLOAD; // 上传 or 下载
 					task_download.callback = callback_download; // 回调函数
-
+					
 					executeTask(task_download, config, exePath);
 				}
 			}
