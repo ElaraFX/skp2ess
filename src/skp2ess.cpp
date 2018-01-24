@@ -171,15 +171,15 @@ int skpCloudRender(const char* exePath, const char* filename, const char* projec
 	return ret;
 }
 
-//int main(int argc, char* argv[])
-//{
-//	//setEnviroment(0);
-//	//setRenderQuality(0);
-//	setResolution(1469, 869);
-//	int scenes[4] = {0,1,2,3};
-//	//setScenes(scenes, 2);
-//	//setCameraType(1);
-//	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall1.skp", "测试", "duoduo一扇", "png", "D:/", "/");
-//	system("pause");
-//	return 0;
-//}
+int main(int argc, char* argv[])
+{
+	//setEnviroment(0);
+	//setRenderQuality(0);
+	setResolution(1469, 869);
+	int scenes[4] = {0,1,2,3};
+	setScenes(scenes, 2);
+	//setCameraType(1);
+	skpCloudRender(argv[0], "D:\\workspace\\skp2ess\\skp2ess\\wall_test1.skp", "wall1", "wall", "png", "D:/", "/");
+	system("pause");
+	return 0;
+}
