@@ -463,7 +463,7 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 			{
 				// get output file
 				g_cri.c_state[scene_index_to_task_index[index]] = CLOUD_STATE_WAITING_OUTPUT;
-				std::string output_path;
+				std::string output_path, final_output_path, final_outputfolder;
 				g_cri.ch.get(url_output_file[index].c_str(), 10008);
 				if(!reader.parse(g_cri.ch.retBuffer, root))
 				{
@@ -483,9 +483,39 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 					std::string outfilename;
 					std::string outfilefolder;
 					LHDTSDK::LHDTTask task_download;
+					
+					// 下载前需要知道文件是否被占用，以重命名
 					extractFilePath(output_path, outfilename, outfilefolder);
+					int rename_index = 0;
+					char rename_index_str[16] = "";
+					final_outputfolder = outputpath;
+					final_output_path = final_outputfolder;
+					final_output_path += outfilename;
+					do 
+					{
+						if (!isFileOccupied(final_output_path.c_str()))
+						{
+							break;
+						}
+						else
+						{
+							sprintf(rename_index_str, "rename_%d/", rename_index);
+							final_outputfolder += rename_index_str;
+							if (ACCESS(final_outputfolder.c_str(), 0))
+							{
+								if (MKDIR(final_outputfolder.c_str()))
+								{
+									printf("Create directory: \'%s\' failed!\n", final_outputfolder.c_str());
+								}
+							}
+							final_output_path = final_outputfolder;
+							final_output_path += outfilename;
+							rename_index++;
+						}
+					} while(1);
+
 					task_download.filename = outfilename.c_str();
-					task_download.local = outputpath;
+					task_download.local = final_outputfolder.c_str();
 					task_download.remote = outfilefolder.c_str();
 					task_download.type = LHDTSDK::LHDTTransferType::LHDT_TT_DOWNLOAD; // 上传 or 下载
 					task_download.callback = callback_download; // 回调函数

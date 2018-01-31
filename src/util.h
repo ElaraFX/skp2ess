@@ -14,7 +14,7 @@
 #define MKDIR(a) mkdir((a),0755)
 #endif
 
-
+bool isFileOccupied(const char *filepath);
 
 
 #endif

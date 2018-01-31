@@ -44,102 +44,102 @@
  *    3    服务器返回数据解析出错
  *    4    渲染图片失败
  */
-//extern "C" __declspec(dllexport) int skpCloudRender(const char* exePath, const char* filename, const char* projectname, const char* outputprefix, const char* outputtype, const char* outputpath, const char* projectfolder);
-//
-///** 功能：设置渲染分辨率：*/ 
-//extern "C" __declspec(dllexport) void setResolution(int x, int y);
-//
-///** 功能：设置相机类型：
-// *  0: 普通透视相机
-// *  1: cubmap全景相机
-// *  2: 球面全景相机
-// */
-//extern "C" __declspec(dllexport) void setCameraType(unsigned int t);
-//
-///** 功能：设置环境模式：
-// *  0: 白天室内
-// *  1: 夜晚
-// *  2: 白天室外
-// */
-//extern "C" __declspec(dllexport) void setEnviroment(unsigned int t);
-//
-///** 功能：设置上传下载的最大速度：
-// *  单位Mbps, 0~80 默认8Mbps
-// */ 
-//extern "C" __declspec(dllexport) void setTranferMaxSpeed(int s);
-//
-///** 功能：设置渲染质量参数：
-// *  0: 中等质量
-// *  1: 低质量
-// *  2: 高质量
-// *  3: 默认
-// */
-//extern "C" __declspec(dllexport) void setRenderQuality(unsigned int q);
-//
-///** 功能：设置多场景渲染参数：
-// *  参数：scene_indices: 参与渲染的场景编号
-// *  参数：num: 参与渲染的场景数目，如果只渲染默认场景，请给0
-// */
-//extern "C" __declspec(dllexport) void setScenes(int *scene_indices, int num);
-//
-///** 功能：获取当前任务状态：
-// *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
-// *	参数：state: 当前状态
-// *  0: 格式转换(skp - ess)
-// *  1: 上传ess
-// *  2: 排队等待渲染
-// *  3: 正在渲染
-// *  4: 正在生成结果文件
-// *  5: 下载结果文件
-// *  6: 流程結束
-// *  7: 上传或下载文件失败
-// *  8: 登陆错误
-// *  9: 任务停止
-// *  10: 渲染任务失败
-// *  11: 任务未开始
-// *  --------------------------
-// *  param: 当状态处于上传或者下载的时候，该参数可以获得上传下载进度
-// */
-//extern "C" __declspec(dllexport) void getState(int scene_index, unsigned int *state, float *param);
-//
-///** 功能：删除当前任务：
-// *  注意：删除的任务无法恢复
-// *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
-// */
-//extern "C" __declspec(dllexport) void deleteRenderJob(int scene_index);
-//
-///** 功能：暂停当前任务：
-// *  注意：暂停的任务如果不删除，会一直保留在任务队列，导致主函数skpCloudRender无法退出
-// *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
-// */
-//extern "C" __declspec(dllexport) void stopRenderJob(int scene_index);
-//
-///** 功能：继续暂停的任务：
-// *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
-// */
-//extern "C" __declspec(dllexport) void resumeRenderJob(int scene_index);
-//
-///** 功能：重新启动任务(相当于先暂停再继续任务)：
-// *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
-// */
-//extern "C" __declspec(dllexport) void restartRenderJob(int scene_index);
-//
-///** 功能：通过场景序号获得JOB_ID号：
-// *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
-// *  注意：如果此时渲染作业还未提交，则JOB_ID号为空
-// *  返回值：true: 场景存在，false: 场景不存在
-// */
-//extern "C" __declspec(dllexport) bool getJobID(int scene_index, char *job_id);
-//
-///** 功能：通过场景序号获得作业ID号：
-// *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
-// *  注意：如果此时渲染作业还未提交，则作业ID号为空
-// *  返回值：true: 场景存在，false: 场景不存在
-// */
-//extern "C" __declspec(dllexport) bool getJobWorkID(int scene_index, char *job_id);
-//
-///** 功能：设置云平台登陆的用户名密码
-// */
-//extern "C" __declspec(dllexport) void setUsernamePassword(const char *username, const char *password);
+extern "C" __declspec(dllexport) int skpCloudRender(const char* exePath, const char* filename, const char* projectname, const char* outputprefix, const char* outputtype, const char* outputpath, const char* projectfolder);
+
+/** 功能：设置渲染分辨率：*/ 
+extern "C" __declspec(dllexport) void setResolution(int x, int y);
+
+/** 功能：设置相机类型：
+ *  0: 普通透视相机
+ *  1: cubmap全景相机
+ *  2: 球面全景相机
+ */
+extern "C" __declspec(dllexport) void setCameraType(unsigned int t);
+
+/** 功能：设置环境模式：
+ *  0: 白天室内
+ *  1: 夜晚
+ *  2: 白天室外
+ */
+extern "C" __declspec(dllexport) void setEnviroment(unsigned int t);
+
+/** 功能：设置上传下载的最大速度：
+ *  单位Mbps, 0~80 默认8Mbps
+ */ 
+extern "C" __declspec(dllexport) void setTranferMaxSpeed(int s);
+
+/** 功能：设置渲染质量参数：
+ *  0: 中等质量
+ *  1: 低质量
+ *  2: 高质量
+ *  3: 默认
+ */
+extern "C" __declspec(dllexport) void setRenderQuality(unsigned int q);
+
+/** 功能：设置多场景渲染参数：
+ *  参数：scene_indices: 参与渲染的场景编号
+ *  参数：num: 参与渲染的场景数目，如果只渲染默认场景，请给0
+ */
+extern "C" __declspec(dllexport) void setScenes(int *scene_indices, int num);
+
+/** 功能：获取当前任务状态：
+ *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
+ *	参数：state: 当前状态
+ *  0: 格式转换(skp - ess)
+ *  1: 上传ess
+ *  2: 排队等待渲染
+ *  3: 正在渲染
+ *  4: 正在生成结果文件
+ *  5: 下载结果文件
+ *  6: 流程結束
+ *  7: 上传或下载文件失败
+ *  8: 登陆错误
+ *  9: 任务停止
+ *  10: 渲染任务失败
+ *  11: 任务未开始
+ *  --------------------------
+ *  param: 当状态处于上传或者下载的时候，该参数可以获得上传下载进度
+ */
+extern "C" __declspec(dllexport) void getState(int scene_index, unsigned int *state, float *param);
+
+/** 功能：删除当前任务：
+ *  注意：删除的任务无法恢复
+ *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
+ */
+extern "C" __declspec(dllexport) void deleteRenderJob(int scene_index);
+
+/** 功能：暂停当前任务：
+ *  注意：暂停的任务如果不删除，会一直保留在任务队列，导致主函数skpCloudRender无法退出
+ *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
+ */
+extern "C" __declspec(dllexport) void stopRenderJob(int scene_index);
+
+/** 功能：继续暂停的任务：
+ *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
+ */
+extern "C" __declspec(dllexport) void resumeRenderJob(int scene_index);
+
+/** 功能：重新启动任务(相当于先暂停再继续任务)：
+ *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
+ */
+extern "C" __declspec(dllexport) void restartRenderJob(int scene_index);
+
+/** 功能：通过场景序号获得JOB_ID号：
+ *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
+ *  注意：如果此时渲染作业还未提交，则JOB_ID号为空
+ *  返回值：true: 场景存在，false: 场景不存在
+ */
+extern "C" __declspec(dllexport) bool getJobID(int scene_index, char *job_id);
+
+/** 功能：通过场景序号获得作业ID号：
+ *  参数：scene_index: skp中场景序号，如果是默认场景，请给0
+ *  注意：如果此时渲染作业还未提交，则作业ID号为空
+ *  返回值：true: 场景存在，false: 场景不存在
+ */
+extern "C" __declspec(dllexport) bool getJobWorkID(int scene_index, char *job_id);
+
+/** 功能：设置云平台登陆的用户名密码
+ */
+extern "C" __declspec(dllexport) void setUsernamePassword(const char *username, const char *password);
 
 #endif
