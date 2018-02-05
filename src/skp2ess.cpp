@@ -173,13 +173,13 @@ int skpCloudRender(const char* exePath, const char* filename, const char* projec
 
 //int main(int argc, char* argv[])
 //{
-//	//setEnviroment(0);
+//	setEnviroment(1);
 //	//setRenderQuality(2);
-//	setResolution(1200, 1000);
+//	setResolution(800, 600);
 //	int scenes[4] = {0,1,2,3};
 //	//setScenes(scenes, 2);
 //	//setCameraType(1);
-//	skpCloudRender(argv[0], "D:/workspace/skp2ess/skp2ess/ces.skp", "ces", "ces", "png", "D:/", "/");
+//	skpCloudRender(argv[0], "D:/workspace/skp2ess/skp2ess/chugui3.skp", "1111", "1111", "png", "D:/", "/");
 //	system("pause");
 //	return 0;
 //}

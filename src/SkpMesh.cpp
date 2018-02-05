@@ -31,6 +31,8 @@
 #include <limits>
 
 static const std::string DEFAULT_MTL_NAME = "default_mtl";
+static const std::string ESS_RENDER_PATH = "highmodel_path";
+static const std::string TEXTURE_RENDER_PATH = "texture_path";
 static const int default_width = 1280;
 static const int default_height = 720;
 static const float REMOVE_VERTEX_EPS = 0.00000001;
@@ -185,7 +187,7 @@ static void MatrixMutiply(SUTransformation &t1, SUTransformation &t2, SUTransfor
 	}
 }
 
-bool get_entity_attribute(SUEntityRef entity, char* dict_name, char* attr_name, char* value_out)
+bool get_entity_attribute(SUEntityRef entity, const char* dict_name, const char* attr_name, char* value_out)
 {
 	SUResult result = SU_ERROR_NONE;
 	SUTypedValueRef componentAttributeValue = SU_INVALID;
@@ -224,7 +226,6 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 
 	size_t num_instances = 0;
 	SU_CALL(SUEntitiesGetNumInstances(entities, &num_instances));
-	//printf("Instances number: %d.\n", num_instances);
 	if (num_instances > 0) 
 	{
 		std::vector<SUComponentInstanceRef> instances(num_instances);
@@ -240,18 +241,10 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 			SU_CALL(SUComponentInstanceGetTransform(instance, &transform));
 			MatrixMutiply(transform, t, transform_mul);
 
-			// get render_path	
+			// get ess_path	
 			SUEntityRef en = SUComponentDefinitionToEntity(definition);
 			char render_path[MAX_PATH] = "";
-			if (get_entity_attribute(en, "info", "render_path", render_path))
-			// --test---------------
-			/*CSUString cu_flag, cu_render_path;
-			SUComponentDefinitionGetName(definition, cu_flag);
-			std::string flag = cu_flag.utf8();
-			SUComponentInstanceGetName(instance, cu_render_path);
-			memcpy(render_path, cu_render_path.utf8().c_str(), cu_render_path.utf8().size());
-			if (flag.find("ess") != -1)*/
-			// --test---------------
+			if (get_entity_attribute(en, "info", ESS_RENDER_PATH.c_str(), render_path))
 			{
 				/**< 加载外部ESS */
 				eiMatrix transform_without_t = ei_matrix( /* 引用外部ESS模型的变化矩阵 */
@@ -272,19 +265,24 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				include_inst.filename = render_path; /* 需要包含的ESS */
 				std::string include_inst_name(render_path);
 				char num[20] = "";
-				sprintf(num, "_%d", c);
+				sprintf(num, "_c_%d", c);
 				include_inst_name += num;
 				memcpy(include_inst.mesh_to_world, (include_ess_mat/* * inch2mm*/).m, sizeof(include_inst.mesh_to_world));
 				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
 				continue;
 			}
 			
+			// get texture_path	
+			memset(render_path, 0, MAX_PATH * sizeof(char));
+			get_entity_attribute(en, "info", TEXTURE_RENDER_PATH.c_str(), render_path);
+			std::string par_tex(render_path);
+
 			SUEntitiesRef c_entities;
 			SUComponentDefinitionGetEntities(definition, &c_entities);
 
 			SUMaterialRef material = SU_INVALID;
 			SUDrawingElementGetMaterial(SUComponentInstanceToDrawingElement(instance), &material);
-			export_mesh_mtl_from_entities(c_entities, &transform_mul, material, std::string(""));
+			export_mesh_mtl_from_entities(c_entities, &transform_mul, material, par_tex);
 			writeEntities(c_entities, transform_mul, material, ctx);
 		}
 	}
@@ -307,33 +305,53 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 			}
 
 			g_mtl_vertex_cache_map.clear();
-			//printf("export curr group id = %d\n", group_i);
 			SUGroupRef group = groups[group_i];
-			/*CSUString su_group_name;
-			SUGroupGetName(group, su_group_name);
-			std::string group_name = su_group_name.utf8();*/
 
 			SUComponentDefinitionRef group_component = SU_INVALID;
 			SUGroupGetDefinition(group, &group_component);
 			SUEntitiesRef group_entities = SU_INVALID;
 			SU_CALL(SUGroupGetEntities(group, &group_entities));
-
-			// get render_path	
-			SUEntityRef en = SUComponentDefinitionToEntity(group_component);
-			char render_path[MAX_PATH] = "";
-			get_entity_attribute(en, "info", "render_path", render_path);
-			std::string par_tex(render_path);
-			// ----- test ----------
-			/*CSUString cu_tex_path;
-			SUComponentInstanceRef inst_group = SUGroupToComponentInstance(group);
-			SUComponentInstanceGetName(inst_group, cu_tex_path);
-			std::string par_tex = cu_tex_path.utf8();*/
-			// ----- test ----------
-
+			
 			// Write transformation
 			SUTransformation transform, transform_mul;
 			SU_CALL(SUGroupGetTransform(group, &transform));
 			MatrixMutiply(transform, t, transform_mul);
+
+			// get ess_path	
+			SUEntityRef en = SUComponentDefinitionToEntity(group_component);
+			char render_path[MAX_PATH] = "";
+			if (get_entity_attribute(en, "info", ESS_RENDER_PATH.c_str(), render_path))
+			{
+				/**< 加载外部ESS */
+				eiMatrix transform_without_t = ei_matrix( /* 引用外部ESS模型的变化矩阵 */
+					transform_mul.values[0], transform_mul.values[1], transform_mul.values[2], transform_mul.values[3],
+					transform_mul.values[4], transform_mul.values[5], transform_mul.values[6], transform_mul.values[7],
+					transform_mul.values[8], transform_mul.values[9], transform_mul.values[10], transform_mul.values[11],
+					0, 0, 0, transform_mul.values[15]
+				);
+				eiMatrix include_ess_mat = ei_matrix(1.0f / INCH2MM, 0, 0, 0, 0, 1.0f / INCH2MM, 0, 0, 0, 0, 1.0f / INCH2MM, 0, 0, 0, 0, 1.0f)
+					* transform_without_t;
+				
+				include_ess_mat.m[3][0] = transform_mul.values[12];
+				include_ess_mat.m[3][1] = transform_mul.values[13];
+				include_ess_mat.m[3][2] = transform_mul.values[14];					
+
+				EH_AssemblyInstance include_inst;
+
+				include_inst.filename = render_path; /* 需要包含的ESS */
+				std::string include_inst_name(render_path);
+				char num[20] = "";
+				sprintf(num, "_g_%d", group_i);
+				include_inst_name += num;
+				memcpy(include_inst.mesh_to_world, (include_ess_mat/* * inch2mm*/).m, sizeof(include_inst.mesh_to_world));
+				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
+				continue;
+			}
+
+			// get texture_path	
+			memset(render_path, 0, MAX_PATH * sizeof(char));
+			get_entity_attribute(en, "info", TEXTURE_RENDER_PATH.c_str(), render_path);
+			std::string par_tex(render_path);
 
 			SUEntitiesRef c_entities;
 			SUGroupGetEntities(group, &c_entities);
@@ -735,6 +753,8 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 	if (faceCount > 0) {
 		std::vector<SUFaceRef> faces(faceCount);
 		SUEntitiesGetFaces(entities, faceCount, &faces[0], &faceCount);
+		size_t w = 0, h = 0;
+		double s = 1, t = 1;
 
 		// Get all the edges in this face
 		for (size_t face_count_i = 0; face_count_i < faceCount; ++face_count_i) {
@@ -803,6 +823,12 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 			else if(SUIsValid(parent_mat))
 			{
 				CSUString name;
+				SUTextureRef mtex;
+				SUMaterialGetTexture(parent_mat, &mtex);
+				if (SUIsValid(mtex))
+				{
+					SUTextureGetDimensions(mtex, &w, &h, &s, &t);
+				}
 				SU_CALL(SUMaterialGetNameLegacyBehavior(parent_mat, name));
 				std::string material_name = name.utf8();
 				int material_index = g_material_container.FindIndexWithString(material_name);
@@ -844,6 +870,11 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 			std::vector<SUPoint3D> front_stq(num_vertices);
 			size_t count = 0;
 			SUMeshHelperGetFrontSTQCoords(mesh_ref, num_vertices, &front_stq[0], &count);
+			for (int i = 0; i < num_vertices; i++)
+			{
+				front_stq[i].x *= s;
+				front_stq[i].y *= t;
+			}
 
 			//Get Normals
 			std::vector<SUVector3D> su_normals(num_vertices);
