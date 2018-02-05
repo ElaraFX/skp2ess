@@ -823,7 +823,7 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 			else if(SUIsValid(parent_mat))
 			{
 				CSUString name;
-				SUTextureRef mtex;
+				SUTextureRef mtex = SU_INVALID;
 				SUMaterialGetTexture(parent_mat, &mtex);
 				if (SUIsValid(mtex))
 				{
