@@ -33,6 +33,7 @@
 static const std::string DEFAULT_MTL_NAME = "default_mtl";
 static const std::string ESS_RENDER_PATH = "highmodel_path";
 static const std::string TEXTURE_RENDER_PATH = "texture_path";
+static const std::string POINT_LIGHT_SYMBOL = "pointlight";
 static const int default_width = 1280;
 static const int default_height = 720;
 static const float REMOVE_VERTEX_EPS = 0.00000001;
@@ -143,6 +144,23 @@ static void set_sun(EH_Context *ctx, EH_Vec2 &dir);
 #ifdef _MSC_VER
 static std::wstring to_utf16(std::string str);
 #endif
+
+int hexCharToInt(char h)
+{
+	if (h <= '9' && h >= '0')
+	{
+		return int(h - '0');
+	}
+	else if (h <= 'f' && h >= 'a')
+	{
+		return int(h - 'a') + 10;
+	}
+	else if (h <= 'F' && h >= 'A')
+	{
+		return int(h - 'A') + 10;
+	}
+	return 0;
+}
 
 static void import_mat_list()
 {
@@ -271,6 +289,40 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
 				continue;
 			}
+			else if (get_entity_attribute(en, "info", POINT_LIGHT_SYMBOL.c_str(), render_path))
+			{
+				// get light attribute
+				char temp_buf[MAX_PATH] = "";
+				double intensity = 1000;
+				get_entity_attribute(en, "info", "intensity", temp_buf);
+				if (strlen(temp_buf) > 0)
+				{
+					intensity = atof(temp_buf);
+				}
+				memset(temp_buf, 0, sizeof(char) * MAX_PATH);
+				get_entity_attribute(en, "info", "color", temp_buf);
+				EH_Vec c = {0, 0, 0};
+				c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
+				c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
+				c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+
+				EH_Light light;
+				light.intensity = intensity;
+				light.type = EH_LIGHT_POINT;
+				light.light_color[0] = c[0];
+				light.light_color[1] = c[1];
+				light.light_color[2] = c[2];
+				eiMatrix ei_tran = ei_matrix(
+					1.0f, 0, 0, 0,
+					0, 1.0f, 0, 0,
+					0, 0, 1.0f, 0,
+					transform_mul.values[12], transform_mul.values[13], transform_mul.values[14], 1.0f
+					);
+				memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
+
+				light_vector.push_back(light);
+				continue;
+			}
 			
 			// get texture_path	
 			memset(render_path, 0, MAX_PATH * sizeof(char));
@@ -282,7 +334,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 
 			SUMaterialRef material = SU_INVALID;
 			SUDrawingElementGetMaterial(SUComponentInstanceToDrawingElement(instance), &material);
-			export_mesh_mtl_from_entities(c_entities, &transform_mul, material, par_tex);
+			//export_mesh_mtl_from_entities(c_entities, &transform_mul, material, par_tex);
 			writeEntities(c_entities, transform_mul, material, ctx);
 		}
 	}
@@ -347,6 +399,40 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
 				continue;
 			}
+			else if (get_entity_attribute(en, "info", POINT_LIGHT_SYMBOL.c_str(), render_path))
+			{
+				// get light attribute
+				char temp_buf[MAX_PATH] = "";
+				double intensity = 1000;
+				get_entity_attribute(en, "info", "intensity", temp_buf);
+				if (strlen(temp_buf) > 0)
+				{
+					intensity = atof(temp_buf);
+				}
+				memset(temp_buf, 0, sizeof(char) * MAX_PATH);
+				get_entity_attribute(en, "info", "color", temp_buf);
+				EH_Vec c = {0, 0, 0};
+				c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
+				c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
+				c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+
+				EH_Light light;
+				light.intensity = intensity;
+				light.type = EH_LIGHT_POINT;
+				light.light_color[0] = c[0];
+				light.light_color[1] = c[1];
+				light.light_color[2] = c[2];
+				eiMatrix ei_tran = ei_matrix(
+					1.0f, 0, 0, 0,
+					0, 1.0f, 0, 0,
+					0, 0, 1.0f, 0,
+					transform_mul.values[12], transform_mul.values[13], transform_mul.values[14], 1.0f
+					);
+				memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
+
+				light_vector.push_back(light);
+				continue;
+			}
 
 			// get texture_path	
 			memset(render_path, 0, MAX_PATH * sizeof(char));
@@ -359,7 +445,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 			SUMaterialRef material = SU_INVALID;
 			SUDrawingElementGetMaterial(SUGroupToDrawingElement(group), &material);
 
-			export_mesh_mtl_from_entities(c_entities, &transform_mul, material, par_tex);
+			//export_mesh_mtl_from_entities(c_entities, &transform_mul, material, par_tex);
 			writeEntities(c_entities, transform_mul, material, ctx);
 		}
 	}
