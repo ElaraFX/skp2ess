@@ -33,7 +33,7 @@
 static const std::string DEFAULT_MTL_NAME = "default_mtl";
 static const std::string ESS_RENDER_PATH = "highmodel_path";
 static const std::string TEXTURE_RENDER_PATH = "texture_path";
-static const std::string POINT_LIGHT_SYMBOL = "pointlight";
+static const std::string UP_LIGHT_SYMBOL = "pointlight";
 static const int default_width = 1280;
 static const int default_height = 720;
 static const float REMOVE_VERTEX_EPS = 0.00000001;
@@ -237,10 +237,10 @@ bool get_entity_attribute(SUEntityRef entity, const char* dict_name, const char*
 	return true;
 }
 
-static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMaterialRef w_par_mat, EH_Context *ctx)
+static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMaterialRef w_par_mat, EH_Context *ctx, std::string &tex_path)
 {
 	//SUMaterialRef null_mat = SU_INVALID;
-	export_mesh_mtl_from_entities(entities, &t, w_par_mat, std::string(""));
+	export_mesh_mtl_from_entities(entities, &t, w_par_mat, tex_path);
 
 	size_t num_instances = 0;
 	SU_CALL(SUEntitiesGetNumInstances(entities, &num_instances));
@@ -289,7 +289,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
 				continue;
 			}
-			else if (get_entity_attribute(en, "info", POINT_LIGHT_SYMBOL.c_str(), render_path))
+			else if (get_entity_attribute(en, "info", UP_LIGHT_SYMBOL.c_str(), render_path))
 			{
 				// get light attribute
 				char temp_buf[MAX_PATH] = "";
@@ -308,14 +308,16 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 
 				EH_Light light;
 				light.intensity = intensity;
-				light.type = EH_LIGHT_POINT;
+				light.type = EH_LIGHT_SPOT;
+				light.size[0] = 0.4f;
+				light.size[1] = 0.6f;
 				light.light_color[0] = c[0];
 				light.light_color[1] = c[1];
 				light.light_color[2] = c[2];
 				eiMatrix ei_tran = ei_matrix(
 					1.0f, 0, 0, 0,
 					0, 1.0f, 0, 0,
-					0, 0, 1.0f, 0,
+					0, 0, -1.0f, 0,
 					transform_mul.values[12], transform_mul.values[13], transform_mul.values[14], 1.0f
 					);
 				memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
@@ -335,7 +337,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 			SUMaterialRef material = SU_INVALID;
 			SUDrawingElementGetMaterial(SUComponentInstanceToDrawingElement(instance), &material);
 			//export_mesh_mtl_from_entities(c_entities, &transform_mul, material, par_tex);
-			writeEntities(c_entities, transform_mul, material, ctx);
+			writeEntities(c_entities, transform_mul, material, ctx, par_tex);
 		}
 	}
 
@@ -399,7 +401,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
 				continue;
 			}
-			else if (get_entity_attribute(en, "info", POINT_LIGHT_SYMBOL.c_str(), render_path))
+			else if (get_entity_attribute(en, "info", UP_LIGHT_SYMBOL.c_str(), render_path))
 			{
 				// get light attribute
 				char temp_buf[MAX_PATH] = "";
@@ -418,14 +420,16 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 
 				EH_Light light;
 				light.intensity = intensity;
-				light.type = EH_LIGHT_POINT;
+				light.type = EH_LIGHT_SPOT;
+				light.size[0] = 0.4f;
+				light.size[1] = 0.6f;
 				light.light_color[0] = c[0];
 				light.light_color[1] = c[1];
 				light.light_color[2] = c[2];
 				eiMatrix ei_tran = ei_matrix(
 					1.0f, 0, 0, 0,
 					0, 1.0f, 0, 0,
-					0, 0, 1.0f, 0,
+					0, 0, -1.0f, 0,
 					transform_mul.values[12], transform_mul.values[13], transform_mul.values[14], 1.0f
 					);
 				memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
@@ -446,7 +450,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 			SUDrawingElementGetMaterial(SUGroupToDrawingElement(group), &material);
 
 			//export_mesh_mtl_from_entities(c_entities, &transform_mul, material, par_tex);
-			writeEntities(c_entities, transform_mul, material, ctx);
+			writeEntities(c_entities, transform_mul, material, ctx, par_tex);
 		}
 	}
 }
@@ -580,11 +584,6 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		for (int index = 0; index < realcount; index++)
 		{
 			SUSceneGetCamera(scenes[index], &su_cam_ref);
-			// --test get scene name
-			/*CSUString s_name;
-			SUSceneGetName(scenes[index], s_name);
-			std::string scene_n = s_name.utf8();*/
-			// --end test
 			if(su_cam_ref.ptr)
 			{
 				if (!g_skp2ess_set.cameras_index[index])
@@ -642,7 +641,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	t.values[0] = t.values[5] = t.values[10] = t.values[15] = 1;
 
 	SUMaterialRef null_mat = SU_INVALID;
-	writeEntities(entities, t, null_mat, ctx);
+	writeEntities(entities, t, null_mat, ctx, std::string(""));
 
 	int poly_index = 0;
 	for (MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin();

@@ -177,9 +177,9 @@ int skpCloudRender(const char* exePath, const char* filename, const char* projec
 //	//setRenderQuality(2);
 //	setResolution(800, 600);
 //	int scenes[4] = {0,1,2,3};
-//	//setScenes(scenes, 2);
+//	//setScenes(scenes, 4);
 //	//setCameraType(1);
-//	skpCloudRender(argv[0], "D:/workspace/skp2ess/skp2ess/chugui3.skp", "1111", "1111", "png", "D:/", "/");
+//	skpCloudRender(argv[0], "D:/workspace/skp2ess/skp2ess/pointlight10.skp", "4442", "4442", "png", "D:/", "/");
 //	system("pause");
 //	return 0;
 //}
