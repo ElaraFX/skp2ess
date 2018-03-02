@@ -34,6 +34,7 @@ static const std::string DEFAULT_MTL_NAME = "default_mtl";
 static const std::string ESS_RENDER_PATH = "highmodel_path";
 static const std::string TEXTURE_RENDER_PATH = "texture_path";
 static const std::string UP_LIGHT_SYMBOL = "pointlight";
+static const std::string IES_LIGHT_SYMBOL = "ieslight";
 static const int default_width = 1280;
 static const int default_height = 720;
 static const float REMOVE_VERTEX_EPS = 0.00000001;
@@ -205,7 +206,7 @@ static void MatrixMutiply(SUTransformation &t1, SUTransformation &t2, SUTransfor
 	}
 }
 
-bool get_entity_attribute(SUEntityRef entity, const char* dict_name, const char* attr_name, char* value_out)
+int get_entity_attribute(SUEntityRef entity, const char* dict_name, const char* attr_name, char* value_out)
 {
 	SUResult result = SU_ERROR_NONE;
 	SUTypedValueRef componentAttributeValue = SU_INVALID;
@@ -213,28 +214,28 @@ bool get_entity_attribute(SUEntityRef entity, const char* dict_name, const char*
 	SUAttributeDictionaryRef dictionay = SU_INVALID;
 	result = SUEntityGetAttributeDictionary(entity, dict_name, &dictionay);
 	if (result != SU_ERROR_NONE)
-		return false;
+		return 0;
 
 	SUStringRef value = SU_INVALID;
 	result = SUAttributeDictionaryGetValue(dictionay, attr_name, &componentAttributeValue);
 	if (result != SU_ERROR_NONE)
-		return false;
+		return 0;
 
 	SUTypedValueType type;
 	SUTypedValueGetType(componentAttributeValue, &type);
 	result = SUStringCreate(&value);
 	result = SUTypedValueGetString(componentAttributeValue, &value);
 	if (result != SU_ERROR_NONE)
-		return false;
+		return 0;
 
 	size_t strLen = 0;
 	size_t copied = 0;
 	result = SUStringGetUTF8Length(value, &strLen);
 	if (result != SU_ERROR_NONE)
-		return false;
+		return 0;
 
 	SUStringGetUTF8(value, strLen, value_out, &copied);
-	return true;
+	return copied;
 }
 
 static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMaterialRef w_par_mat, EH_Context *ctx, std::string &tex_path)
@@ -325,7 +326,55 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				light_vector.push_back(light);
 				continue;
 			}
-			
+			else if (get_entity_attribute(en, "info", IES_LIGHT_SYMBOL.c_str(), render_path))
+			{
+				// get light attribute
+				char temp_buf[MAX_PATH] = "";
+				double intensity = 1000;
+				get_entity_attribute(en, "info", "intensity", temp_buf);
+				if (strlen(temp_buf) > 0)
+				{
+					intensity = atof(temp_buf);
+				}
+				memset(temp_buf, 0, sizeof(char) * MAX_PATH);
+				get_entity_attribute(en, "info", "color", temp_buf);
+				EH_Vec c = {0, 0, 0};
+				c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
+				c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
+				c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+				
+				char *ies_buf = new char[MAX_PATH];
+				int num = get_entity_attribute(en, "info", "ies_path", ies_buf);
+				if (num < MAX_PATH)
+				{
+					ies_buf[num] = '\0';
+				}
+
+				EH_Light light;
+				light.intensity = intensity;
+				light.type = EH_LIGHT_IES;
+				light.ies_filename = ies_buf;
+				light.size[0] = 0.4f;
+				light.size[1] = 0.6f;
+				light.light_color[0] = c[0];
+				light.light_color[1] = c[1];
+				light.light_color[2] = c[2];
+				eiMatrix light_mat = ei_matrix( /* 引用外部ESS模型的变化矩阵 */
+					transform_mul.values[0], transform_mul.values[1], transform_mul.values[2], transform_mul.values[3],
+					transform_mul.values[4], transform_mul.values[5], transform_mul.values[6], transform_mul.values[7],
+					transform_mul.values[8], transform_mul.values[9], transform_mul.values[10], transform_mul.values[11],
+					0, 0, 0, transform_mul.values[15]
+				);
+				
+				light_mat.m[3][0] = transform_mul.values[12];
+				light_mat.m[3][1] = transform_mul.values[13];
+				light_mat.m[3][2] = transform_mul.values[14];	
+				memcpy(light.light_to_world, &light_mat.m[0], sizeof(light.light_to_world));
+
+				light_vector.push_back(light);
+				continue;
+			}
+
 			// get texture_path	
 			memset(render_path, 0, MAX_PATH * sizeof(char));
 			get_entity_attribute(en, "info", TEXTURE_RENDER_PATH.c_str(), render_path);
@@ -433,6 +482,54 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 					transform_mul.values[12], transform_mul.values[13], transform_mul.values[14], 1.0f
 					);
 				memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
+
+				light_vector.push_back(light);
+				continue;
+			}
+			else if (get_entity_attribute(en, "info", IES_LIGHT_SYMBOL.c_str(), render_path))
+			{
+				// get light attribute
+				char temp_buf[MAX_PATH] = "";
+				double intensity = 1000;
+				get_entity_attribute(en, "info", "intensity", temp_buf);
+				if (strlen(temp_buf) > 0)
+				{
+					intensity = atof(temp_buf);
+				}
+				memset(temp_buf, 0, sizeof(char) * MAX_PATH);
+				get_entity_attribute(en, "info", "color", temp_buf);
+				EH_Vec c = {0, 0, 0};
+				c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
+				c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
+				c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+				
+				char *ies_buf = new char[MAX_PATH];
+				int num = get_entity_attribute(en, "info", "ies_path", ies_buf);
+				if (num < MAX_PATH)
+				{
+					ies_buf[num] = '\0';
+				}
+
+				EH_Light light;
+				light.intensity = intensity;
+				light.type = EH_LIGHT_IES;
+				light.ies_filename = ies_buf;
+				light.size[0] = 0.4f;
+				light.size[1] = 0.6f;
+				light.light_color[0] = c[0];
+				light.light_color[1] = c[1];
+				light.light_color[2] = c[2];
+				eiMatrix light_mat = ei_matrix( /* 引用外部ESS模型的变化矩阵 */
+					transform_mul.values[0], transform_mul.values[1], transform_mul.values[2], transform_mul.values[3],
+					transform_mul.values[4], transform_mul.values[5], transform_mul.values[6], transform_mul.values[7],
+					transform_mul.values[8], transform_mul.values[9], transform_mul.values[10], transform_mul.values[11],
+					0, 0, 0, transform_mul.values[15]
+				);
+				
+				light_mat.m[3][0] = transform_mul.values[12];
+				light_mat.m[3][1] = transform_mul.values[13];
+				light_mat.m[3][2] = transform_mul.values[14];	
+				memcpy(light.light_to_world, &light_mat.m[0], sizeof(light.light_to_world));
 
 				light_vector.push_back(light);
 				continue;
