@@ -142,4 +142,17 @@ extern "C" __declspec(dllexport) bool getJobWorkID(int scene_index, char *job_id
  */
 extern "C" __declspec(dllexport) void setUsernamePassword(const char *username, const char *password);
 
+/** 功能：设置曝光级别(数值越低亮度越高，默认值0)
+ */
+extern "C" __declspec(dllexport) void setExposureValue(float e);
+
+/** 功能：关闭曝光级别设置，转而使用每个环境模式的默认曝光值
+ */
+extern "C" __declspec(dllexport) void disableExposureValue();
+
+/** 功能：设置客户端ID
+ */
+extern "C" __declspec(dllexport) void setClientID(char *client_id);
+
+
 #endif

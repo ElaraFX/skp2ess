@@ -80,6 +80,17 @@ void setCameraType(unsigned int t)
 	}
 }
 
+void setExposureValue(float e)
+{
+	g_skp2ess_set.exp_val = e;
+	g_skp2ess_set.exp_val_on = true;
+}
+
+void disableExposureValue()
+{
+	g_skp2ess_set.exp_val_on = false;
+}
+
 void setRenderQuality(unsigned int q)
 {
 	if (q <= EH_DEFAULT)
@@ -131,6 +142,11 @@ bool getJobID(int scene_index, char *job_id)
 	return false;
 }
 
+void setClientID(char *client_id)
+{
+	g_cri.clientid = client_id;
+}
+
 bool getJobWorkID(int scene_index, char *jobwork_id)
 {
 	if (g_skp2ess_set.cameras_index[scene_index])
@@ -174,12 +190,15 @@ int skpCloudRender(const char* exePath, const char* filename, const char* projec
 //int main(int argc, char* argv[])
 //{
 //	setEnviroment(1);
+//	setExposureValue(-5);
 //	//setRenderQuality(2);
 //	setResolution(800, 600);
 //	int scenes[4] = {0,1,2,3};
+//	char aa[5] = "xxds";
+//	setClientID(aa);
 //	//setScenes(scenes, 4);
 //	//setCameraType(1);
-//	skpCloudRender(argv[0], "D:/workspace/skp2ess/skp2ess/pointlight10.skp", "4442", "4442", "png", "D:/", "/");
+//	skpCloudRender(argv[0], "D:/workspace/skp2ess/skp2ess/chugui4.skp", "chugui4", "chugui4", "png", "D:/", "/");
 //	system("pause");
 //	return 0;
 //}

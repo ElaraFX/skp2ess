@@ -137,9 +137,9 @@ static void import_mat_list();
 static void release_all_res();
 static EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal);
 static void fix_inf_vertex(eiVector &v);
-static void set_day_exposure(EH_Context *ctx);
-static void set_night_exposure(EH_Context *ctx);
-static void set_outworld_day_exposure(EH_Context *ctx);
+static void set_day_exposure(EH_Context *ctx, skp2ess_set *ss);
+static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss);
+static void set_outworld_day_exposure(EH_Context *ctx, skp2ess_set *ss);
 static void set_sun(EH_Context *ctx, EH_Vec2 &dir);
 
 #ifdef _MSC_VER
@@ -635,16 +635,16 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	//set_outworld_day_exposure(ctx);
 	if (g_skp2ess_set.exposure_type == ET_DAY)
 	{
-		set_day_exposure(ctx);	
+		set_day_exposure(ctx, &g_skp2ess_set);	
 		set_sun(ctx, sun_dir);
 	}
 	else if (g_skp2ess_set.exposure_type == ET_NIGHT)
 	{
-		set_night_exposure(ctx);
+		set_night_exposure(ctx, &g_skp2ess_set);
 	}
 	else
 	{
-		set_outworld_day_exposure(ctx);	
+		set_outworld_day_exposure(ctx, &g_skp2ess_set);	
 		set_sun(ctx, sun_dir);
 	}
 	
@@ -1256,10 +1256,17 @@ static void fix_inf_vertex(eiVector &v)
 	}
 }
 
-static void set_day_exposure(EH_Context *ctx)
+static void set_day_exposure(EH_Context *ctx, skp2ess_set *ss)
 {
 	EH_Exposure day_expo;
-	day_expo.exposure_value = 0.5f;
+	if (!ss->exp_val_on)
+	{
+		day_expo.exposure_value = 0.5f;
+	}
+	else
+	{
+		day_expo.exposure_value = ss->exp_val;
+	}
 	day_expo.exposure_whitepoint = 6500.0f;
 	EH_set_exposure(ctx, &day_expo);
 
@@ -1272,10 +1279,17 @@ static void set_day_exposure(EH_Context *ctx)
 	EH_set_sky(ctx, &sky);
 }
 
-static void set_night_exposure(EH_Context *ctx)
+static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss)
 {
 	EH_Exposure night_expo;
-	night_expo.exposure_value = -0.5f;
+	if (!ss->exp_val_on)
+	{
+		night_expo.exposure_value = -0.5f;
+	}
+	else
+	{
+		night_expo.exposure_value = ss->exp_val;
+	}
 	night_expo.exposure_highlight = 0.1f;
 	night_expo.exposure_shadow = 0.4f;
 	night_expo.exposure_saturation = 1.3f;
@@ -1296,10 +1310,17 @@ static void set_night_exposure(EH_Context *ctx)
 	EH_set_sky(ctx, &sky);
 }
 
-static void set_outworld_day_exposure(EH_Context *ctx)
+static void set_outworld_day_exposure(EH_Context *ctx, skp2ess_set *ss)
 {
 	EH_Exposure day_expo;
-	day_expo.exposure_value = 3.0f;
+	if (!ss->exp_val_on)
+	{
+		day_expo.exposure_value = 3.0f;
+	}
+	else
+	{
+		day_expo.exposure_value = ss->exp_val;
+	}
 	day_expo.exposure_whitepoint = 6500.0f;
 	day_expo.exposure_shadow = 0.4f;
 	EH_set_exposure(ctx, &day_expo);

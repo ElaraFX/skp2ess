@@ -22,6 +22,8 @@ enum CAMERA_TYPE{
 struct skp2ess_set
 {
 	int camera_num;
+	float exp_val;
+	bool exp_val_on;
 	bool cameras_index[MAX_MODEL_SCENES];
 	EXP_TYPE exposure_type;
 	EH_RenderQuality opt_quality;
@@ -34,6 +36,8 @@ struct skp2ess_set
 		camera_num = 0;
 		memset(cameras_index, 0, sizeof(int) * MAX_MODEL_SCENES);
 		cameras_index[0] = true;
+		exp_val = 0;
+		exp_val_on = false;
 	}
 };
 

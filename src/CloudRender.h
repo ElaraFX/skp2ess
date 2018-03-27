@@ -39,6 +39,7 @@ struct cloud_render_info
 	int cur_download_scene;
 	int transferMaxSpeed;
 	int finished_tasks;
+	std::string clientid;
 	std::string username;
 	std::string password;
 	std::string token;
@@ -59,6 +60,7 @@ struct cloud_render_info
 		paramTransfer = 0;
 		transferMaxSpeed = -1;
 		cur_download_scene = 0;
+		clientid = "gjj";
 		username = "30466622";
 		password = "a123456";
 		finished_tasks = 0;

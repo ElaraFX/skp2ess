@@ -4,14 +4,16 @@
 #include "UploadCloud.h"
 #include <Windows.h>
 
-#define CLOUD_URL "http://render7.vsochina.com:10008"
+#define CLOUD_URL "http://render12.vsochina.com:10008"
 #define JOB_STATUS_RENDER "1"
 #define JOB_STATUS_STOP "2"
 #define JOB_STATUS_COMPLETE "4"
 #define JOB_STATUS_FAILED "7"
-#define CLOUD_CENTER_IP "cbs7.vsochina.com"
+#define CLOUD_CENTER_IP "cbs12.vsochina.com"
 #define SERVER_PORT "33001"
 #define REMOTE_PATH "/123/"
+#define APP_ID "GJJ"
+#define APP_TOKEN "2a16e8dc4c77ba2e8e53ed1ff8be4c61"
 
 cloud_render_info g_cri;
 
@@ -122,9 +124,15 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 {
 	// login
 	std::string url_login = CLOUD_URL;
-	url_login += "/api/web/v1/user/login?username=";
+	url_login += "/api/web/v2/user/login?username=";
 	url_login += g_cri.username + "&password=";
 	url_login += g_cri.password;
+	url_login += "&client_id=";
+	url_login += g_cri.clientid;
+	url_login += "&appid=";
+	url_login += APP_ID;
+	url_login += "&apptoken=";
+	url_login += APP_TOKEN;
 	std::string postfields = "";
 	g_cri.ch.post(url_login.c_str(), 10008, postfields.c_str());
 
@@ -200,11 +208,17 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	sprintf(res_y, "%d", g_cri.res_y);
 	std::string filename_encoded = g_cri.ch.escape(string_To_UTF8(filename));
 	std::string prefix_encoded = g_cri.ch.escape(string_To_UTF8(outputprefix));
-	url_render_task +=  "/api/web/v1/job/submit?";
+	url_render_task +=  "/api/web/v2/job/submit?";
 	url_render_task +=  "username=";
 	url_render_task +=  username;
 	url_render_task +=  "&token=";
 	url_render_task +=  token;
+	url_render_task += "&client_id=";
+	url_render_task += g_cri.clientid;
+	url_render_task += "&appid=";
+	url_render_task += APP_ID;
+	url_render_task += "&apptoken=";
+	url_render_task += APP_TOKEN;
 	url_render_task +=  "&job={";
 	url_render_task +=  "\"guid\":\"Elara\",";
 	url_render_task +=  "\"scene_file\":\"";
@@ -236,7 +250,7 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	url_render_task +=  "\"start_frame\":1,";
 	url_render_task +=  "\"stop_frame\":1,";
 	url_render_task +=  "\"by_frame\":1,";
-	url_render_task +=  "\"pool_id\":\"3425c1b338afc5cb1cb0bba1acad553d\"";
+	url_render_task +=  "\"pool_id\":\"85eca1b25098c8a86dff105aa7068290\"";	
 
 	// handle cameras
 	if (g_skp2ess_set.camera_num > 0)
@@ -280,15 +294,21 @@ void stopRenderJobBySceneIndex(int scene_index)
 {
 	if (g_cri.c_state[scene_index] == CLOUD_STATE_WAIT_RENDER || g_cri.c_state[scene_index] == CLOUD_STATE_RENDERING)
 	{
-		std::string url_stop_render_task = CLOUD_URL;
-		url_stop_render_task += "/api/web/v1/job/stop?";
-		url_stop_render_task += "username=";
-		url_stop_render_task += g_cri.username;
-		url_stop_render_task += "&token=";
-		url_stop_render_task += g_cri.token;
-		url_stop_render_task += "&job_id=";
-		url_stop_render_task += g_cri.job_ids[scene_index];
-		g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+		std::string url_render_task = CLOUD_URL;
+		url_render_task += "/api/web/v2/job/stop?";
+		url_render_task += "username=";
+		url_render_task += g_cri.username;
+		url_render_task += "&token=";
+		url_render_task += g_cri.token;
+		url_render_task += "&job_id=";
+		url_render_task += g_cri.job_ids[scene_index];
+		url_render_task += "&client_id=";
+		url_render_task += g_cri.clientid;
+		url_render_task += "&appid=";
+		url_render_task += APP_ID;
+		url_render_task += "&apptoken=";
+		url_render_task += APP_TOKEN;
+		g_cri.ch.post(url_render_task.c_str(), 10008, "");
 		g_cri.c_state[scene_index] = CLOUD_STATE_STOP;
 	}
 }
@@ -297,45 +317,63 @@ void resumeRenderJobBySceneIndex(int scene_index)
 {
 	if (g_cri.c_state[scene_index] == CLOUD_STATE_STOP)
 	{
-		std::string url_stop_render_task = CLOUD_URL;
-		url_stop_render_task += "/api/web/v1/job/recover?";
-		url_stop_render_task += "username=";
-		url_stop_render_task += g_cri.username;
-		url_stop_render_task += "&token=";
-		url_stop_render_task += g_cri.token;
-		url_stop_render_task += "&job_id=";
-		url_stop_render_task += g_cri.job_ids[scene_index];
-		g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+		std::string url_render_task = CLOUD_URL;
+		url_render_task += "/api/web/v2/job/recover?";
+		url_render_task += "username=";
+		url_render_task += g_cri.username;
+		url_render_task += "&token=";
+		url_render_task += g_cri.token;
+		url_render_task += "&job_id=";
+		url_render_task += g_cri.job_ids[scene_index];
+		url_render_task += "&client_id=";
+		url_render_task += g_cri.clientid;
+		url_render_task += "&appid=";
+		url_render_task += APP_ID;
+		url_render_task += "&apptoken=";
+		url_render_task += APP_TOKEN;
+		g_cri.ch.post(url_render_task.c_str(), 10008, "");
 		g_cri.c_state[scene_index] = CLOUD_STATE_WAIT_RENDER;
 	}
 }
 
 void restartRenderJobBySceneIndex(int scene_index)
 {
-	std::string url_stop_render_task = CLOUD_URL;
-	url_stop_render_task += "/api/web/v1/job/restart?";
-	url_stop_render_task += "username=";
-	url_stop_render_task += g_cri.username;
-	url_stop_render_task += "&token=";
-	url_stop_render_task += g_cri.token;
-	url_stop_render_task += "&job_id=";
-	url_stop_render_task += g_cri.job_ids[scene_index];
-	g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+	std::string url_render_task = CLOUD_URL;
+	url_render_task += "/api/web/v2/job/restart?";
+	url_render_task += "username=";
+	url_render_task += g_cri.username;
+	url_render_task += "&token=";
+	url_render_task += g_cri.token;
+	url_render_task += "&job_id=";
+	url_render_task += g_cri.job_ids[scene_index];
+	url_render_task += "&client_id=";
+	url_render_task += g_cri.clientid;
+	url_render_task += "&appid=";
+	url_render_task += APP_ID;
+	url_render_task += "&apptoken=";
+	url_render_task += APP_TOKEN;
+	g_cri.ch.post(url_render_task.c_str(), 10008, "");
 }
 
 void abandonRenderJobBySceneIndex(int scene_index)
 {
 	if (g_cri.c_state[scene_index] == CLOUD_STATE_WAIT_RENDER || g_cri.c_state[scene_index] == CLOUD_STATE_RENDERING)
 	{
-		std::string url_stop_render_task = CLOUD_URL;
-		url_stop_render_task += "/api/web/v1/job/delete?";
-		url_stop_render_task += "username=";
-		url_stop_render_task += g_cri.username;
-		url_stop_render_task += "&token=";
-		url_stop_render_task += g_cri.token;
-		url_stop_render_task += "&job_id=";
-		url_stop_render_task += g_cri.job_ids[scene_index];
-		g_cri.ch.post(url_stop_render_task.c_str(), 10008, "");
+		std::string url_render_task = CLOUD_URL;
+		url_render_task += "/api/web/v2/job/delete?";
+		url_render_task += "username=";
+		url_render_task += g_cri.username;
+		url_render_task += "&token=";
+		url_render_task += g_cri.token;
+		url_render_task += "&job_id=";
+		url_render_task += g_cri.job_ids[scene_index];
+		url_render_task += "&client_id=";
+		url_render_task += g_cri.clientid;
+		url_render_task += "&appid=";
+		url_render_task += APP_ID;
+		url_render_task += "&apptoken=";
+		url_render_task += APP_TOKEN;
+		g_cri.ch.post(url_render_task.c_str(), 10008, "");
 		g_cri.c_state[scene_index] = CLOUD_STATE_UNFIND;
 	}
 }
@@ -374,22 +412,34 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 	for (int index = 0; index < max_cameras; index++)
 	{
 		url_job_info[index] = CLOUD_URL;
-		url_job_info[index] +=  "/api/web/v1/job/info?";
+		url_job_info[index] +=  "/api/web/v2/job/info?";
 		url_job_info[index] +=  "username=";
 		url_job_info[index] +=  username;
 		url_job_info[index] +=  "&token=";
 		url_job_info[index] +=  token;
 		url_job_info[index] +=  "&job_id=";
 		url_job_info[index] +=  g_cri.job_ids[index];
+		url_job_info[index] += "&client_id=";
+		url_job_info[index] += g_cri.clientid;
+		url_job_info[index] += "&appid=";
+		url_job_info[index] += APP_ID;
+		url_job_info[index] += "&apptoken=";
+		url_job_info[index] += APP_TOKEN;
 
 		url_output_file[index] = CLOUD_URL;
-		url_output_file[index] += "/api/web/v1/job/output_files2?";
+		url_output_file[index] += "/api/web/v2/job/output_files2?";
 		url_output_file[index] +=  "username=";
 		url_output_file[index] +=  username;
 		url_output_file[index] +=  "&token=";
 		url_output_file[index] +=  token;
 		url_output_file[index] +=  "&job_id=";
 		url_output_file[index] +=  g_cri.job_ids[index];
+		url_output_file[index] += "&client_id=";
+		url_output_file[index] += g_cri.clientid;
+		url_output_file[index] += "&appid=";
+		url_output_file[index] += APP_ID;
+		url_output_file[index] += "&apptoken=";
+		url_output_file[index] += APP_TOKEN;
 	}
 	
 	// 以下信息从web api的 domain接口获取
