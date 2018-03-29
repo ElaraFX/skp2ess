@@ -154,5 +154,8 @@ extern "C" __declspec(dllexport) void disableExposureValue();
  */
 extern "C" __declspec(dllexport) void setClientID(char *client_id);
 
+/** 功能：设置户外HDR文件(参数为HDR文件名，如"day.hdr")
+ */
+extern "C" __declspec(dllexport) void setHDRname(char *hdr_name);
 
 #endif

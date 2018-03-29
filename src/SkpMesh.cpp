@@ -1272,7 +1272,14 @@ static void set_day_exposure(EH_Context *ctx, skp2ess_set *ss)
 
 	EH_Sky sky;
 	sky.enabled = true;
-	sky.hdri_name = "HDR/day.hdr";
+	if (ss->hdr_name.empty())
+	{
+		sky.hdri_name = "HDR/day.hdr";
+	}
+	else
+	{
+		sky.hdri_name = ss->hdr_name.c_str();
+	}
 	sky.hdri_rotation = radians(0);
 	sky.intensity = 100.0f;
 	sky.enable_emit_GI = true;
@@ -1303,7 +1310,14 @@ static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss)
 
 	EH_Sky sky;
 	sky.enabled = true;
-	sky.hdri_name = "HDR/night.hdr";
+	if (ss->hdr_name.empty())
+	{
+		sky.hdri_name = "HDR/night.hdr";
+	}
+	else
+	{
+		sky.hdri_name = ss->hdr_name.c_str();
+	}
 	sky.hdri_rotation = radians(0);
 	sky.intensity = 1.0f;
 	sky.enable_emit_GI = true;
@@ -1331,7 +1345,14 @@ static void set_outworld_day_exposure(EH_Context *ctx, skp2ess_set *ss)
 
 	EH_Sky sky;
 	sky.enabled = true;
-	sky.hdri_name = "HDR/day.hdr";
+	if (ss->hdr_name.empty())
+	{
+		sky.hdri_name = "HDR/day.hdr";
+	}
+	else
+	{
+		sky.hdri_name = ss->hdr_name.c_str();
+	}
 	sky.hdri_rotation = radians(0);
 	sky.intensity = 40.0f;
 	sky.enable_emit_GI = true;

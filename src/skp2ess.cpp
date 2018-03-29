@@ -187,15 +187,22 @@ int skpCloudRender(const char* exePath, const char* filename, const char* projec
 	return ret;
 }
 
+void setHDRname(char *hdr_name)
+{
+	g_skp2ess_set.hdr_name = "HDR/";
+	g_skp2ess_set.hdr_name += hdr_name;
+}
+
 //int main(int argc, char* argv[])
 //{
 //	setEnviroment(1);
-//	setExposureValue(-5);
+//	//setExposureValue(-5);
 //	//setRenderQuality(2);
 //	setResolution(800, 600);
 //	int scenes[4] = {0,1,2,3};
-//	char aa[5] = "xxds";
-//	setClientID(aa);
+//	//char aa[5] = "xxds";
+//	//setClientID(aa);
+//	//setHDRname("白天3.hdr");
 //	//setScenes(scenes, 4);
 //	//setCameraType(1);
 //	skpCloudRender(argv[0], "D:/workspace/skp2ess/skp2ess/chugui4.skp", "chugui4", "chugui4", "png", "D:/", "/");

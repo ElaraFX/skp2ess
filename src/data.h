@@ -28,6 +28,7 @@ struct skp2ess_set
 	EXP_TYPE exposure_type;
 	EH_RenderQuality opt_quality;
 	CAMERA_TYPE camera_type;
+	std::string hdr_name;
 	skp2ess_set()
 	{
 		camera_type = CT_NORMAL;
@@ -38,6 +39,7 @@ struct skp2ess_set
 		cameras_index[0] = true;
 		exp_val = 0;
 		exp_val_on = false;
+		hdr_name = "";
 	}
 };
 
