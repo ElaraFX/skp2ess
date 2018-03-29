@@ -208,6 +208,7 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	sprintf(res_y, "%d", g_cri.res_y);
 	std::string filename_encoded = g_cri.ch.escape(string_To_UTF8(filename));
 	std::string prefix_encoded = g_cri.ch.escape(string_To_UTF8(outputprefix));
+	std::string project_encoded = g_cri.ch.escape(string_To_UTF8(projectfolder));
 	url_render_task +=  "/api/web/v2/job/submit?";
 	url_render_task +=  "username=";
 	url_render_task +=  username;
@@ -229,7 +230,7 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	url_render_task +=  filename_encoded;
 	url_render_task +=  "\",";
 	url_render_task +=  "\"project_dir\":\"";
-	url_render_task +=  projectfolder;
+	url_render_task +=  project_encoded;
 	url_render_task +=  "\",";
 	url_render_task +=  "\"output_dir\":\"/output_image/\",";
 	url_render_task +=  "\"image_width\":\"";
