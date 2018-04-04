@@ -395,11 +395,11 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 
 					// get light attribute
 					char temp_buf[MAX_PATH] = "";
-					double intensity = 10000;
+					double intensity = 1000;
 					get_entity_attribute(en, "info", "intensity", temp_buf);
 					if (strlen(temp_buf) > 0)
 					{
-						//intensity = atof(temp_buf);
+						intensity = atof(temp_buf);
 					}
 					memset(temp_buf, 0, sizeof(char) * MAX_PATH);
 					get_entity_attribute(en, "info", "color", temp_buf);
@@ -636,11 +636,11 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 
 					// get light attribute
 					char temp_buf[MAX_PATH] = "";
-					double intensity = 10000;
+					double intensity = 1000;
 					get_entity_attribute(en, "info", "intensity", temp_buf);
 					if (strlen(temp_buf) > 0)
 					{
-						//intensity = atof(temp_buf);
+						intensity = atof(temp_buf);
 					}
 					memset(temp_buf, 0, sizeof(char) * MAX_PATH);
 					get_entity_attribute(en, "info", "color", temp_buf);
