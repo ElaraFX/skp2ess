@@ -47,6 +47,13 @@ struct cloud_render_info
 	std::string jobwork_ids[MAX_MODEL_SCENES];
 	cloud_render_info()
 	{
+		reset();
+		ch.init();
+		res_x = 1024;
+		res_y = 768;
+	}
+	void reset()
+	{
 		for (int i = 0; i < MAX_MODEL_SCENES; i++)
 		{
 			c_state[i] = CLOUD_STATE_INITIAL;
@@ -54,9 +61,6 @@ struct cloud_render_info
 			jobwork_ids[i] = "";
 		}
 		
-		ch.init();
-		res_x = 1024;
-		res_y = 768;
 		paramTransfer = 0;
 		transferMaxSpeed = -1;
 		cur_download_scene = 0;

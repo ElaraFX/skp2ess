@@ -23,6 +23,7 @@ struct skp2ess_set
 {
 	int camera_num;
 	float exp_val;
+	float enviroment_hdr_multipler;
 	bool exp_val_on;
 	bool cameras_index[MAX_MODEL_SCENES];
 	EXP_TYPE exposure_type;
@@ -39,6 +40,7 @@ struct skp2ess_set
 		cameras_index[0] = true;
 		exp_val = 0;
 		exp_val_on = false;
+		enviroment_hdr_multipler = 1.0f;
 		hdr_name = "";
 	}
 };

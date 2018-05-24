@@ -16,6 +16,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <process.h>
 #include "Material.h"
 #include "ImportSketchup.h"
 #include "UploadCloud.h"
@@ -160,6 +161,25 @@ bool getJobWorkID(int scene_index, char *jobwork_id)
 	return false;
 }
 
+int skp2ess(const char* filename, const char* projectname, const char* outputpath)
+{
+	int ret = 0;
+	std::string ess_filepath(outputpath);
+	if (ess_filepath[ess_filepath.size() - 1] != '/' && ess_filepath[ess_filepath.size() - 1] != '\\')
+	{
+		ess_filepath += '/';
+	}
+	ess_filepath += projectname;
+	ess_filepath += ".ess";
+	g_material_container.SetProjectName(projectname);
+	if (!import_mesh_from_skp(filename, ess_filepath.c_str()))
+	{
+		return 1;
+	}
+
+	return ret;
+}
+
 int skpCloudRender(const char* exePath, const char* filename, const char* projectname, const char* outputprefix, const char* outputtype, const char* outputpath, const char* projectfolder)
 {
 	int ret = 0;
@@ -193,7 +213,17 @@ void setHDRname(char *hdr_name)
 	g_skp2ess_set.hdr_name += hdr_name;
 }
 
-//int main(int argc, char* argv[])
+void apiUninitial()
+{
+	g_cri.api.UnInitial();
+}
+
+void setHDRmultipler(float multipler)
+{
+	g_skp2ess_set.enviroment_hdr_multipler = multipler;
+}
+
+//void new_thread(void *param)
 //{
 //	setEnviroment(1);
 //	//setExposureValue(-5);
@@ -205,7 +235,13 @@ void setHDRname(char *hdr_name)
 //	//setHDRname("白天3.hdr");
 //	//setScenes(scenes, 4);
 //	//setCameraType(1);
-//	skpCloudRender(argv[0], "D:/workspace/skp2ess/skp2ess/chugui4.skp", "chugui4", "chugui4", "png", "D:/", "/");
+//	skpCloudRender("D:\workspace\skp2ess\skp2ess\x64\Release\skp2ess.exe", "D:/workspace/skp2ess/skp2ess/chugui4.skp", "chugui4", "chugui4", "png", "D:/", "/"); 
+//}
+//
+//int main(int argc, char* argv[])
+//{
+//	//skpCloudRender(argv[0], "D:/workspace/skp2ess/skp2ess/chugui4.skp", "chugui4", "chugui4", "png", "D:/", "/"); 
+//	_beginthread(new_thread, 0, NULL);
 //	system("pause");
 //	return 0;
 //}

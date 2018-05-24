@@ -51,7 +51,7 @@ void GetMaterialInfo(SUMaterialRef material)
 			CSUString texture_name;
 			SU_CALL(SUTextureGetFileName(texture, texture_name));
 			info.texture_name_ = texture_name.utf8();
-			char texPath[EI_MAX_FILE_NAME_LEN];
+			/*char texPath[EI_MAX_FILE_NAME_LEN];
 			const char *projectDir = g_material_container.GetProjectName();
 			if (ACCESS(projectDir, 0))
 			{
@@ -60,7 +60,7 @@ void GetMaterialInfo(SUMaterialRef material)
 					printf("Create directory: \'%s\' failed!\n", projectDir);
 				}
 			}
-			sprintf(texPath, "%s\\%s", projectDir, info.texture_name_.c_str());
+			sprintf(texPath, "%s\\%s", projectDir, info.texture_name_.c_str());*/
 			// for guojiajia, don't write texture file to disk
 			/*SUResult ret = SUTextureWriteToFile(texture, texPath);
 			if (ret != SU_ERROR_NONE)
@@ -69,7 +69,8 @@ void GetMaterialInfo(SUMaterialRef material)
 			}*/
 
 			// Set texture full path
-			info.texture_path_ = std::string(texPath);
+			//info.texture_path_ = std::string(texPath);
+			info.texture_path_ = "";
 
 			// Texture scale
 			size_t width = 0;

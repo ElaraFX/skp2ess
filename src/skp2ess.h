@@ -46,6 +46,17 @@
  */
 extern "C" __declspec(dllexport) int skpCloudRender(const char* exePath, const char* filename, const char* projectname, const char* outputprefix, const char* outputtype, const char* outputpath, const char* projectfolder);
 
+/** 功能：转换skp到ess
+ *   filename：skp文件名
+ *   projectname：工程名
+ *   outputpath：输出文件目录
+ */
+extern "C" __declspec(dllexport) int skp2ess(const char* filename, const char* projectname, const char* outputpath);
+
+/** 功能：lhdt_sdk api uninitial
+ */
+extern "C" __declspec(dllexport) void apiUninitial();
+
 /** 功能：设置渲染分辨率：*/ 
 extern "C" __declspec(dllexport) void setResolution(int x, int y);
 
@@ -157,5 +168,10 @@ extern "C" __declspec(dllexport) void setClientID(char *client_id);
 /** 功能：设置户外HDR文件(参数为HDR文件名，如"day.hdr")
  */
 extern "C" __declspec(dllexport) void setHDRname(char *hdr_name);
+
+/** 功能：设置户外HDR亮度(不设置的话，默认值为1)
+ */
+extern "C" __declspec(dllexport) void setHDRmultipler(float multipler);
+
 
 #endif

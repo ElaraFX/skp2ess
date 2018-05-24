@@ -589,5 +589,6 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 	
 	delete[] scene_index_to_task_index;
 	g_cri.api.UnInitial();
+	g_cri.reset();
     return 0;
 }
