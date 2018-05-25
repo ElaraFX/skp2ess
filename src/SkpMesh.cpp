@@ -733,7 +733,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 		printf("Open %s failed! Error code = %d\n", skp_file_name, res);
 		return false;
 	}
-	printf("Read %s finish!\n", skp_file_name);	
+	//printf("Read %s finish!\n", skp_file_name);	
 
 	//Add a default material
 	EH_Material default_mat;
@@ -1460,21 +1460,22 @@ static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss)
 	EH_Exposure night_expo;
 	if (!ss->exp_val_on)
 	{
-		night_expo.exposure_value = -0.5f;
+		night_expo.exposure_value = -1.5f;
 	}
 	else
 	{
 		night_expo.exposure_value = ss->exp_val;
 	}
-	night_expo.exposure_highlight = 0.1f;
-	night_expo.exposure_shadow = 0.4f;
+	night_expo.exposure_highlight = 0.05f;
+	night_expo.exposure_shadow = 0.1f;
 	night_expo.exposure_saturation = 1.3f;
-	night_expo.exposure_whitepoint = 6000.0f;
+	night_expo.exposure_whitepoint = 6500.0f;
 	//night_expo.display_gamma = 2.596f;
 	EH_set_exposure(ctx, &night_expo);
 
 	EH_Gamma gamma;
-	gamma.display_gamma = 2.596f;
+	gamma.display_gamma = 2.2f;
+	gamma.texture_gamma = 2.2f;
 	EH_set_gamma(ctx, &gamma);
 
 	EH_Sky sky;
@@ -1488,7 +1489,7 @@ static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss)
 		sky.hdri_name = ss->hdr_name.c_str();
 	}
 	sky.hdri_rotation = radians(0);
-	sky.intensity = 1.0f * ss->enviroment_hdr_multipler;
+	sky.intensity = 5.0f * ss->enviroment_hdr_multipler;
 	sky.enable_emit_GI = true;
 	EH_set_sky(ctx, &sky);
 }
