@@ -30,12 +30,14 @@
 #include <boost/math/special_functions/fpclassify.hpp>
 #include <limits>
 
+static const std::string INSTANCE_EXT = "_instance";
 static const std::string DEFAULT_MTL_NAME = "default_mtl";
 static const std::string ESS_RENDER_PATH = "highmodel_path";
 static const std::string TEXTURE_RENDER_PATH = "texture_path";
-static const std::string UP_LIGHT_SYMBOL = "pointlight";
-static const std::string UP_QUAD_LIGHT_SYMBOL = "quadlight";
+static const std::string QUAD_LIGHT_SYMBOL = "quadlight";
 static const std::string IES_LIGHT_SYMBOL = "ieslight";
+static const std::string PORTAL_LIGHT_SYMBOL = "portallight";
+static const std::string EXCLUDE_LIGHT = "exclude_light";
 static const int default_width = 1280;
 static const int default_height = 720;
 static const float REMOVE_VERTEX_EPS = 0.00000001;
@@ -293,43 +295,17 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				sprintf(num, "_c_%d", c);
 				include_inst_name += num;
 				memcpy(include_inst.mesh_to_world, (include_ess_mat/* * inch2mm*/).m, sizeof(include_inst.mesh_to_world));
-				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
-				continue;
-			}
-			else if (get_entity_attribute(en, "info", UP_LIGHT_SYMBOL.c_str(), render_path))
-			{
-				// get light attribute
-				char temp_buf[MAX_PATH] = "";
-				double intensity = 1000;
-				get_entity_attribute(en, "info", "intensity", temp_buf);
-				if (strlen(temp_buf) > 0)
+
+				// exclude light
+				char light_name[128] = {'\0'};
+				if (get_entity_attribute(en, "info", EXCLUDE_LIGHT.c_str(), light_name))
 				{
-					intensity = atof(temp_buf);
+					std::string light_inst_name = light_name;
+					light_inst_name += INSTANCE_EXT;
+					memcpy(include_inst.light_exclude, light_inst_name.c_str(), light_inst_name.size() + 1);
 				}
-				memset(temp_buf, 0, sizeof(char) * MAX_PATH);
-				get_entity_attribute(en, "info", "color", temp_buf);
-				EH_Vec c = {0, 0, 0};
-				c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
-				c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
-				c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
 
-				EH_Light light;
-				light.intensity = intensity;
-				light.type = EH_LIGHT_SPOT;
-				light.size[0] = 0.8f;
-				light.size[1] = 1.0f;
-				light.light_color[0] = c[0];
-				light.light_color[1] = c[1];
-				light.light_color[2] = c[2];
-				eiMatrix ei_tran = ei_matrix(
-					1.0f, 0, 0, 0,
-					0, 1.0f, 0, 0,
-					0, 0, -1.0f, 0,
-					transform_mul.values[12], transform_mul.values[13], transform_mul.values[14], 1.0f
-					);
-				memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
-
-				light_vector.push_back(light);
+				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
 				continue;
 			}
 			else if (get_entity_attribute(en, "info", IES_LIGHT_SYMBOL.c_str(), render_path))
@@ -343,11 +319,13 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 					intensity = atof(temp_buf);
 				}
 				memset(temp_buf, 0, sizeof(char) * MAX_PATH);
-				get_entity_attribute(en, "info", "color", temp_buf);
-				EH_Vec c = {0, 0, 0};
-				c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
-				c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
-				c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+				EH_Vec c = {1, 1, 1};
+				if (get_entity_attribute(en, "info", "color", temp_buf))
+				{
+					c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
+					c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
+					c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+				}
 				
 				char *ies_buf = new char[MAX_PATH];
 				int num = get_entity_attribute(en, "info", "ies_path", ies_buf);
@@ -377,10 +355,14 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				light_mat.m[3][2] = transform_mul.values[14];	
 				memcpy(light.light_to_world, &light_mat.m[0], sizeof(light.light_to_world));
 
+				CSUString light_name;
+				SUComponentDefinitionGetName(definition, light_name);
+				sprintf(light.light_name, "%s", light_name.utf8().c_str());
+
 				light_vector.push_back(light);
 				continue;
 			}
-			else if (get_entity_attribute(en, "info", UP_QUAD_LIGHT_SYMBOL.c_str(), render_path))
+			else if (get_entity_attribute(en, "info", QUAD_LIGHT_SYMBOL.c_str(), render_path))
 			{
 				size_t faceCount = 0;	
 				const size_t MAX_NAME_LENGTH = 128;
@@ -402,13 +384,16 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 						intensity = atof(temp_buf);
 					}
 					memset(temp_buf, 0, sizeof(char) * MAX_PATH);
-					get_entity_attribute(en, "info", "color", temp_buf);
-					EH_Vec c = {0, 0, 0};
-					c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
-					c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
-					c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+					EH_Vec c = {1, 1, 1};
+					if (get_entity_attribute(en, "info", "color", temp_buf))
+					{
+						c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
+						c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
+						c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+					}
 
 					// Get all the edges in this face
+					float maxX, maxY, minX, minY;
 					for (size_t face_count_i = 0; face_count_i < faceCount; ++face_count_i) {
 						SUFaceRef &face_data = faces[face_count_i];
 						SUMeshHelperRef mesh_ref = SU_INVALID;
@@ -424,7 +409,6 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 						}
 						std::vector<SUPoint3D> vertices(num_vertices);
 						SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);
-						float maxX, maxY, minX, minY;
 						maxX = minX = vertices[0].x;
 						maxY = minY = vertices[0].y;
 						for (int index = 1; index < min(4, num_vertices); index++)
@@ -434,25 +418,153 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 							if (maxY < vertices[index].y) maxY = vertices[index].y;
 							if (minY > vertices[index].y) minY = vertices[index].y;
 						}
-
-						EH_Light light;
-						light.intensity = intensity;
-						light.type = EH_LIGHT_QUAD;
-						light.size[0] = maxX - minX;
-						light.size[1] = maxY - minY;
-						light.light_color[0] = c[0];
-						light.light_color[1] = c[1];
-						light.light_color[2] = c[2];
-						eiMatrix ei_tran = ei_matrix(
-							1.0f, 0, 0, 0,
-							0, 1.0f, 0, 0,
-							0, 0, -1.0f, 0,
-							transform_mul.values[12] + (maxX + minX) / 2.0f, transform_mul.values[13] + (maxY + minY) / 2.0f, transform_mul.values[14], 1.0f
-							);
-						memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
-
-						light_vector.push_back(light);
 					}
+
+					EH_Light light;
+					light.intensity = intensity;
+					light.type = EH_LIGHT_QUAD;
+					light.size[0] = maxX - minX;
+					light.size[1] = maxY - minY;
+					light.light_color[0] = c[0];
+					light.light_color[1] = c[1];
+					light.light_color[2] = c[2];
+					light.visible = EI_TRUE;
+					eiMatrix ei_tran = 
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							(maxX + minX) / 2.0f, (maxY + minY) / 2.0f, 0.0f, 1.0f) *
+						ei_matrix(
+							transform_mul.values[0], transform_mul.values[1], transform_mul.values[2], transform_mul.values[3],
+							transform_mul.values[4], transform_mul.values[5], transform_mul.values[6], transform_mul.values[7],
+							transform_mul.values[8], transform_mul.values[9], transform_mul.values[10], transform_mul.values[11],
+							0, 0, 0, 1) * 
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							-(maxX + minX) / 2.0f, -(maxY + minY) / 2.0f, 0.0f, 1.0f) *
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							transform_mul.values[12] + (maxX + minX) / 2.0f, transform_mul.values[13] + (maxY + minY) / 2.0f, transform_mul.values[14], 1.0f);
+					memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
+						
+					if (get_entity_attribute(en, "info", "invisible", temp_buf))
+					{
+						light.visible = EI_FALSE;
+					}
+
+					CSUString light_name;
+					SUComponentDefinitionGetName(definition, light_name);
+					sprintf(light.light_name, "%s", light_name.utf8().c_str());
+
+					light_vector.push_back(light);
+				}
+				continue;
+			}
+			else if (get_entity_attribute(en, "info", QUAD_LIGHT_SYMBOL.c_str(), render_path))
+			{
+				size_t faceCount = 0;	
+				const size_t MAX_NAME_LENGTH = 128;
+				SUEntitiesRef sub_entities;
+				SUComponentDefinitionGetEntities(definition, &sub_entities);
+				SUEntitiesGetNumFaces(sub_entities, &faceCount);
+				if (faceCount > 0) {
+					std::vector<SUFaceRef> faces(faceCount);
+					SUEntitiesGetFaces(sub_entities, faceCount, &faces[0], &faceCount);
+					size_t w = 0, h = 0;
+					double s = 1, t = 1;
+
+					// get light attribute
+					char temp_buf[MAX_PATH] = "";
+					double intensity = 1000;
+					get_entity_attribute(en, "info", "intensity", temp_buf);
+					if (strlen(temp_buf) > 0)
+					{
+						intensity = atof(temp_buf);
+					}
+					memset(temp_buf, 0, sizeof(char) * MAX_PATH);
+					EH_Vec c = {1, 1, 1};
+					if (get_entity_attribute(en, "info", "color", temp_buf))
+					{
+						c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
+						c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
+						c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+					}
+
+					// Get all the edges in this face
+					float maxX, maxY, minX, minY;
+					for (size_t face_count_i = 0; face_count_i < faceCount; ++face_count_i) {
+						SUFaceRef &face_data = faces[face_count_i];
+						SUMeshHelperRef mesh_ref = SU_INVALID;
+						SUMeshHelperCreate(&mesh_ref, face_data);
+
+						//Get vertices
+						size_t num_vertices = 0;
+						SUMeshHelperGetNumVertices(mesh_ref, &num_vertices);
+						if (num_vertices == 0)
+						{
+							printf("number of vertices is 0!\n");
+							continue;
+						}
+						std::vector<SUPoint3D> vertices(num_vertices);
+						SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);
+						maxX = minX = vertices[0].x;
+						maxY = minY = vertices[0].y;
+						for (int index = 1; index < min(4, num_vertices); index++)
+						{
+							if (maxX < vertices[index].x) maxX = vertices[index].x;
+							if (minX > vertices[index].x) minX = vertices[index].x;
+							if (maxY < vertices[index].y) maxY = vertices[index].y;
+							if (minY > vertices[index].y) minY = vertices[index].y;
+						}
+					}
+
+					EH_Light light;
+					light.intensity = intensity;
+					light.type = EH_LIGHT_PORTAL;
+					light.size[0] = maxX - minX;
+					light.size[1] = maxY - minY;
+					light.light_color[0] = c[0];
+					light.light_color[1] = c[1];
+					light.light_color[2] = c[2];
+					light.visible = EI_TRUE;
+					eiMatrix ei_tran = 
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							(maxX + minX) / 2.0f, (maxY + minY) / 2.0f, 0.0f, 1.0f) *
+						ei_matrix(
+							transform_mul.values[0], transform_mul.values[1], transform_mul.values[2], transform_mul.values[3],
+							transform_mul.values[4], transform_mul.values[5], transform_mul.values[6], transform_mul.values[7],
+							transform_mul.values[8], transform_mul.values[9], transform_mul.values[10], transform_mul.values[11],
+							0, 0, 0, 1) * 
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							-(maxX + minX) / 2.0f, -(maxY + minY) / 2.0f, 0.0f, 1.0f) *
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							transform_mul.values[12] + (maxX + minX) / 2.0f, transform_mul.values[13] + (maxY + minY) / 2.0f, transform_mul.values[14], 1.0f);
+					memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
+						
+					if (get_entity_attribute(en, "info", "invisible", temp_buf))
+					{
+						light.visible = EI_FALSE;
+					}
+
+					CSUString light_name;
+					SUComponentDefinitionGetName(definition, light_name);
+					sprintf(light.light_name, "%s", light_name.utf8().c_str());
+
+					light_vector.push_back(light);
 				}
 				continue;
 			}
@@ -534,43 +646,17 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				sprintf(num, "_g_%d", group_i);
 				include_inst_name += num;
 				memcpy(include_inst.mesh_to_world, (include_ess_mat/* * inch2mm*/).m, sizeof(include_inst.mesh_to_world));
-				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
-				continue;
-			}
-			else if (get_entity_attribute(en, "info", UP_LIGHT_SYMBOL.c_str(), render_path))
-			{
-				// get light attribute
-				char temp_buf[MAX_PATH] = "";
-				double intensity = 1000;
-				get_entity_attribute(en, "info", "intensity", temp_buf);
-				if (strlen(temp_buf) > 0)
+				
+				// exclude light
+				char light_name[128] = {'\0'};
+				if (get_entity_attribute(en, "info", EXCLUDE_LIGHT.c_str(), light_name))
 				{
-					intensity = atof(temp_buf);
+					std::string light_inst_name = light_name;
+					light_inst_name += INSTANCE_EXT;
+					memcpy(include_inst.light_exclude, light_inst_name.c_str(), light_inst_name.size() + 1);
 				}
-				memset(temp_buf, 0, sizeof(char) * MAX_PATH);
-				get_entity_attribute(en, "info", "color", temp_buf);
-				EH_Vec c = {0, 0, 0};
-				c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
-				c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
-				c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
 
-				EH_Light light;
-				light.intensity = intensity;
-				light.type = EH_LIGHT_SPOT;
-				light.size[0] = 1.566433f;
-				light.size[1] = 1.56207f;
-				light.light_color[0] = c[0];
-				light.light_color[1] = c[1];
-				light.light_color[2] = c[2];
-				eiMatrix ei_tran = ei_matrix(
-					1.0f, 0, 0, 0,
-					0, 1.0f, 0, 0,
-					0, 0, -1.0f, 0,
-					transform_mul.values[12], transform_mul.values[13], transform_mul.values[14], 1.0f
-					);
-				memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
-
-				light_vector.push_back(light);
+				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
 				continue;
 			}
 			else if (get_entity_attribute(en, "info", IES_LIGHT_SYMBOL.c_str(), render_path))
@@ -584,11 +670,13 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 					intensity = atof(temp_buf);
 				}
 				memset(temp_buf, 0, sizeof(char) * MAX_PATH);
-				get_entity_attribute(en, "info", "color", temp_buf);
-				EH_Vec c = {0, 0, 0};
-				c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
-				c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
-				c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+				EH_Vec c = {1, 1, 1};
+				if (get_entity_attribute(en, "info", "color", temp_buf))
+				{
+					c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
+					c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
+					c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+				}
 				
 				char *ies_buf = new char[MAX_PATH];
 				int num = get_entity_attribute(en, "info", "ies_path", ies_buf);
@@ -618,10 +706,14 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				light_mat.m[3][2] = transform_mul.values[14];	
 				memcpy(light.light_to_world, &light_mat.m[0], sizeof(light.light_to_world));
 
+				CSUString light_name;
+				SUComponentDefinitionGetName(group_component, light_name);
+				sprintf(light.light_name, "%s", light_name.utf8().c_str());
+
 				light_vector.push_back(light);
 				continue;
 			}
-			else if (get_entity_attribute(en, "info", UP_QUAD_LIGHT_SYMBOL.c_str(), render_path))
+			else if (get_entity_attribute(en, "info", QUAD_LIGHT_SYMBOL.c_str(), render_path))
 			{
 				size_t faceCount = 0;	
 				const size_t MAX_NAME_LENGTH = 128;
@@ -643,13 +735,16 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 						intensity = atof(temp_buf);
 					}
 					memset(temp_buf, 0, sizeof(char) * MAX_PATH);
-					get_entity_attribute(en, "info", "color", temp_buf);
-					EH_Vec c = {0, 0, 0};
-					c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
-					c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
-					c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+					EH_Vec c = {1, 1, 1};
+					if (get_entity_attribute(en, "info", "color", temp_buf))
+					{
+						c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
+						c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
+						c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+					}
 
 					// Get all the edges in this face
+					float maxX, maxY, minX, minY;
 					for (size_t face_count_i = 0; face_count_i < faceCount; ++face_count_i) {
 						SUFaceRef &face_data = faces[face_count_i];
 						SUMeshHelperRef mesh_ref = SU_INVALID;
@@ -665,7 +760,6 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 						}
 						std::vector<SUPoint3D> vertices(num_vertices);
 						SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);
-						float maxX, maxY, minX, minY;
 						maxX = minX = vertices[0].x;
 						maxY = minY = vertices[0].y;
 						for (int index = 1; index < min(4, num_vertices); index++)
@@ -675,25 +769,153 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 							if (maxY < vertices[index].y) maxY = vertices[index].y;
 							if (minY > vertices[index].y) minY = vertices[index].y;
 						}
-
-						EH_Light light;
-						light.intensity = intensity;
-						light.type = EH_LIGHT_QUAD;
-						light.size[0] = maxX - minX;
-						light.size[1] = maxY - minY;
-						light.light_color[0] = c[0];
-						light.light_color[1] = c[1];
-						light.light_color[2] = c[2];
-						eiMatrix ei_tran = ei_matrix(
-							1.0f, 0, 0, 0,
-							0, 1.0f, 0, 0,
-							0, 0, -1.0f, 0,
-							transform_mul.values[12] + (maxX + minX) / 2.0f, transform_mul.values[13] + (maxY + minY) / 2.0f, transform_mul.values[14], 1.0f
-							);
-						memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
-
-						light_vector.push_back(light);
 					}
+
+					EH_Light light;
+					light.intensity = intensity;
+					light.type = EH_LIGHT_QUAD;
+					light.size[0] = maxX - minX;
+					light.size[1] = maxY - minY;
+					light.light_color[0] = c[0];
+					light.light_color[1] = c[1];
+					light.light_color[2] = c[2];
+					light.visible = EI_TRUE;
+					eiMatrix ei_tran = 
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							(maxX + minX) / 2.0f, (maxY + minY) / 2.0f, 0.0f, 1.0f) *
+						ei_matrix(
+							transform_mul.values[0], transform_mul.values[1], transform_mul.values[2], transform_mul.values[3],
+							transform_mul.values[4], transform_mul.values[5], transform_mul.values[6], transform_mul.values[7],
+							transform_mul.values[8], transform_mul.values[9], transform_mul.values[10], transform_mul.values[11],
+							0, 0, 0, 1) * 
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							-(maxX + minX) / 2.0f, -(maxY + minY) / 2.0f, 0.0f, 1.0f) *
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							transform_mul.values[12] + (maxX + minX) / 2.0f, transform_mul.values[13] + (maxY + minY) / 2.0f, transform_mul.values[14], 1.0f);
+					memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
+
+					if (get_entity_attribute(en, "info", "invisible", temp_buf))
+					{
+						light.visible = EI_FALSE;
+					}
+
+					CSUString light_name;
+					SUComponentDefinitionGetName(group_component, light_name);
+					sprintf(light.light_name, "%s", light_name.utf8().c_str());
+
+					light_vector.push_back(light);
+				}
+				continue;
+			}
+			else if (get_entity_attribute(en, "info", PORTAL_LIGHT_SYMBOL.c_str(), render_path))
+			{
+				size_t faceCount = 0;	
+				const size_t MAX_NAME_LENGTH = 128;
+				SUEntitiesRef sub_entities;
+				SUGroupGetEntities(group, &sub_entities);
+				SUEntitiesGetNumFaces(sub_entities, &faceCount);
+				if (faceCount > 0) {
+					std::vector<SUFaceRef> faces(faceCount);
+					SUEntitiesGetFaces(sub_entities, faceCount, &faces[0], &faceCount);
+					size_t w = 0, h = 0;
+					double s = 1, t = 1;
+
+					// get light attribute
+					char temp_buf[MAX_PATH] = "";
+					double intensity = 1000;
+					get_entity_attribute(en, "info", "intensity", temp_buf);
+					if (strlen(temp_buf) > 0)
+					{
+						intensity = atof(temp_buf);
+					}
+					memset(temp_buf, 0, sizeof(char) * MAX_PATH);
+					EH_Vec c = {1, 1, 1};
+					if (get_entity_attribute(en, "info", "color", temp_buf))
+					{
+						c[0] = (hexCharToInt(temp_buf[0]) * 16 + hexCharToInt(temp_buf[1])) / 255.0f;
+						c[1] = (hexCharToInt(temp_buf[2]) * 16 + hexCharToInt(temp_buf[3])) / 255.0f;
+						c[2] = (hexCharToInt(temp_buf[4]) * 16 + hexCharToInt(temp_buf[5])) / 255.0f;
+					}
+
+					// Get all the edges in this face
+					float maxX, maxY, minX, minY;
+					for (size_t face_count_i = 0; face_count_i < faceCount; ++face_count_i) {
+						SUFaceRef &face_data = faces[face_count_i];
+						SUMeshHelperRef mesh_ref = SU_INVALID;
+						SUMeshHelperCreate(&mesh_ref, face_data);
+
+						//Get vertices
+						size_t num_vertices = 0;
+						SUMeshHelperGetNumVertices(mesh_ref, &num_vertices);
+						if (num_vertices == 0)
+						{
+							printf("number of vertices is 0!\n");
+							continue;
+						}
+						std::vector<SUPoint3D> vertices(num_vertices);
+						SUMeshHelperGetVertices(mesh_ref, num_vertices, &vertices[0], &num_vertices);
+						maxX = minX = vertices[0].x;
+						maxY = minY = vertices[0].y;
+						for (int index = 1; index < min(4, num_vertices); index++)
+						{
+							if (maxX < vertices[index].x) maxX = vertices[index].x;
+							if (minX > vertices[index].x) minX = vertices[index].x;
+							if (maxY < vertices[index].y) maxY = vertices[index].y;
+							if (minY > vertices[index].y) minY = vertices[index].y;
+						}
+					}
+
+					EH_Light light;
+					light.intensity = intensity;
+					light.type = EH_LIGHT_PORTAL;
+					light.size[0] = maxX - minX;
+					light.size[1] = maxY - minY;
+					light.light_color[0] = c[0];
+					light.light_color[1] = c[1];
+					light.light_color[2] = c[2];
+					light.visible = EI_TRUE;
+					eiMatrix ei_tran = 
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							(maxX + minX) / 2.0f, (maxY + minY) / 2.0f, 0.0f, 1.0f) *
+						ei_matrix(
+							transform_mul.values[0], transform_mul.values[1], transform_mul.values[2], transform_mul.values[3],
+							transform_mul.values[4], transform_mul.values[5], transform_mul.values[6], transform_mul.values[7],
+							transform_mul.values[8], transform_mul.values[9], transform_mul.values[10], transform_mul.values[11],
+							0, 0, 0, 1) * 
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							-(maxX + minX) / 2.0f, -(maxY + minY) / 2.0f, 0.0f, 1.0f) *
+						ei_matrix(
+							1, 0, 0, 0,
+							0, 1, 0, 0,
+							0, 0, 1, 0,
+							transform_mul.values[12] + (maxX + minX) / 2.0f, transform_mul.values[13] + (maxY + minY) / 2.0f, transform_mul.values[14], 1.0f);
+					memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
+
+					if (get_entity_attribute(en, "info", "invisible", temp_buf))
+					{
+						light.visible = EI_FALSE;
+					}
+
+					CSUString light_name;
+					SUComponentDefinitionGetName(group_component, light_name);
+					sprintf(light.light_name, "%s", light_name.utf8().c_str());
+
+					light_vector.push_back(light);
 				}
 				continue;
 			}
@@ -1016,7 +1238,10 @@ static void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScal
 	SU_CALL(SUMaterialGetNameLegacyBehavior(skp_mtl, name));
 	int index = g_material_container.FindIndexWithString(name.utf8());
 	MaterialInfo &mtl_info = g_material_container.materialinfos[index];
-	eh_mtl.diffuse_tex.filename = mtl_info.texture_path_.c_str();
+	if (mtl_info.texture_path_.size() > 0)
+	{
+		eh_mtl.diffuse_tex.filename = mtl_info.texture_path_.c_str();
+	}
 	if (mtl_info.has_alpha_)
 	{
 		eh_mtl.transp_weight = 1.0 - mtl_info.alpha_;
@@ -1167,7 +1392,11 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 						convert_to_eh_mtl(eh_mat, material, uv_scale);
 						g_mtl_map.insert(std::pair<std::string, EH_Material>(material_name, eh_mat));
 					}
-
+					// prevent some texture error
+					/*if (par_tex_path.size() > 0)
+					{
+						it->second.diffuse_tex.filename = par_tex_path.c_str();
+					}*/
 					mat_name = material_name;
 				}
 			}
@@ -1201,6 +1430,11 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 						convert_to_eh_mtl(eh_mat, parent_mat, uv_scale);
 						g_mtl_map.insert(std::pair<std::string, EH_Material>(material_name, eh_mat));
 					}
+					// prevent some texture error
+					/*if (par_tex_path.size() > 0)
+					{
+						it->second.diffuse_tex.filename = par_tex_path.c_str();
+					}*/
 
 					mat_name = material_name;
 				}
@@ -1335,8 +1569,7 @@ static void export_light(EH_Context *ctx)
 	char light_inst_name[EI_MAX_FILE_NAME_LEN];
 	for(int i = 0; i < light_vector.size(); ++i)
 	{
-		sprintf(light_inst_name, "IES_light_inst%d", i);
-		EH_add_light(ctx, light_inst_name, &light_vector[i]);
+		EH_add_light(ctx, light_vector[i].light_name, &light_vector[i]);
 	}
 
 	light_vector.clear();
@@ -1436,6 +1669,9 @@ static void set_day_exposure(EH_Context *ctx, skp2ess_set *ss)
 	{
 		day_expo.exposure_value = ss->exp_val;
 	}
+	day_expo.exposure_highlight = 0.01f;
+	day_expo.exposure_shadow = 0.1f;
+	day_expo.exposure_saturation = 1.3f;
 	day_expo.exposure_whitepoint = 6500.0f;
 	EH_set_exposure(ctx, &day_expo);
 
@@ -1450,7 +1686,7 @@ static void set_day_exposure(EH_Context *ctx, skp2ess_set *ss)
 		sky.hdri_name = ss->hdr_name.c_str();
 	}
 	sky.hdri_rotation = radians(0);
-	sky.intensity = 100.0f * ss->enviroment_hdr_multipler;
+	sky.intensity = ss->enviroment_hdr_multipler;
 	sky.enable_emit_GI = true;
 	EH_set_sky(ctx, &sky);
 }
@@ -1460,17 +1696,16 @@ static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss)
 	EH_Exposure night_expo;
 	if (!ss->exp_val_on)
 	{
-		night_expo.exposure_value = -1.5f;
+		night_expo.exposure_value = -1.0f;
 	}
 	else
 	{
 		night_expo.exposure_value = ss->exp_val;
 	}
-	night_expo.exposure_highlight = 0.05f;
+	night_expo.exposure_highlight = 0.01f;
 	night_expo.exposure_shadow = 0.1f;
 	night_expo.exposure_saturation = 1.3f;
 	night_expo.exposure_whitepoint = 6500.0f;
-	//night_expo.display_gamma = 2.596f;
 	EH_set_exposure(ctx, &night_expo);
 
 	EH_Gamma gamma;
@@ -1489,7 +1724,7 @@ static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss)
 		sky.hdri_name = ss->hdr_name.c_str();
 	}
 	sky.hdri_rotation = radians(0);
-	sky.intensity = 5.0f * ss->enviroment_hdr_multipler;
+	sky.intensity = ss->enviroment_hdr_multipler;
 	sky.enable_emit_GI = true;
 	EH_set_sky(ctx, &sky);
 }
@@ -1505,8 +1740,10 @@ static void set_outworld_day_exposure(EH_Context *ctx, skp2ess_set *ss)
 	{
 		day_expo.exposure_value = ss->exp_val;
 	}
+	day_expo.exposure_highlight = 0.01f;
+	day_expo.exposure_shadow = 0.1f;
+	day_expo.exposure_saturation = 1.3f;
 	day_expo.exposure_whitepoint = 6500.0f;
-	day_expo.exposure_shadow = 0.4f;
 	EH_set_exposure(ctx, &day_expo);
 
 	EH_Gamma gamma;
@@ -1524,7 +1761,7 @@ static void set_outworld_day_exposure(EH_Context *ctx, skp2ess_set *ss)
 		sky.hdri_name = ss->hdr_name.c_str();
 	}
 	sky.hdri_rotation = radians(0);
-	sky.intensity = 40.0f * ss->enviroment_hdr_multipler;
+	sky.intensity = ss->enviroment_hdr_multipler;
 	sky.enable_emit_GI = true;
 	EH_set_sky(ctx, &sky);
 }
@@ -1534,9 +1771,9 @@ static void set_sun(EH_Context *ctx, EH_Vec2 &dir)
 	EH_Sun sun;
 	sun.dir[0] = dir[0];
 	sun.dir[1] = dir[1];
-	float color[3] = {0.94902, 0.776471, 0.619608};
+	float color[3] = {1.0, 0.803922, 0.709804};
 	memcpy(sun.color, color, sizeof(color));
-	sun.intensity = 94.24778;
+	sun.intensity = 50.0f;
 	sun.soft_shadow = 1.0f;
 	EH_set_sun(ctx, &sun);
 }

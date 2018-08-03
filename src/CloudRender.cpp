@@ -161,12 +161,6 @@ int upload_ess(const char* exePath, const char* filename, const char* outputpref
 	{
 		g_cri.c_state[i] = CLOUD_STATE_TRANSFERRING;
 	}
-	
-	// init
-	char *buf = new char[strlen(exePath)+1];
-	strcpy(buf, exePath);
-	g_cri.initial(buf);
-	delete[] buf;
 
 	g_cri.paramTransfer = 0;
     LHDTSDK::LHDTConfig config;
@@ -588,7 +582,7 @@ int CloudRender(const char* exePath, const char* filename, const char* outputpre
 	} while(g_cri.finished_tasks < max_cameras);
 	
 	delete[] scene_index_to_task_index;
-	g_cri.api.UnInitial();
+	//g_cri.api.UnInitial();
 	g_cri.reset();
     return 0;
 }

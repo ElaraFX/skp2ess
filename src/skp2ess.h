@@ -57,6 +57,10 @@ extern "C" __declspec(dllexport) int skp2ess(const char* filename, const char* p
  */
 extern "C" __declspec(dllexport) void apiUninitial();
 
+/** 功能：lhdt_sdk api initial
+ */
+extern "C" __declspec(dllexport) void apiInitial(char *exePath);
+
 /** 功能：设置渲染分辨率：*/ 
 extern "C" __declspec(dllexport) void setResolution(int x, int y);
 

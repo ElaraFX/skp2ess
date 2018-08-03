@@ -218,30 +218,38 @@ void apiUninitial()
 	g_cri.api.UnInitial();
 }
 
+void apiInitial(char *exePath)
+{
+	g_cri.api.Initial(exePath);
+}
+
 void setHDRmultipler(float multipler)
 {
 	g_skp2ess_set.enviroment_hdr_multipler = multipler;
 }
-
-//void new_thread(void *param)
-//{
-//	setEnviroment(1);
-//	//setExposureValue(-5);
-//	//setRenderQuality(2);
-//	setResolution(800, 600);
-//	int scenes[4] = {0,1,2,3};
-//	//char aa[5] = "xxds";
-//	//setClientID(aa);
-//	//setHDRname("白天3.hdr");
-//	//setScenes(scenes, 4);
-//	//setCameraType(1);
-//	skpCloudRender("D:\workspace\skp2ess\skp2ess\x64\Release\skp2ess.exe", "D:/workspace/skp2ess/skp2ess/chugui4.skp", "chugui4", "chugui4", "png", "D:/", "/"); 
-//}
-//
-//int main(int argc, char* argv[])
-//{
-//	//skpCloudRender(argv[0], "D:/workspace/skp2ess/skp2ess/chugui4.skp", "chugui4", "chugui4", "png", "D:/", "/"); 
-//	_beginthread(new_thread, 0, NULL);
-//	system("pause");
-//	return 0;
-//}
+////
+////void new_thread(void *param)
+////{
+////	setEnviroment(1);
+////	//setExposureValue(3);
+////	//setRenderQuality(2);
+////	setResolution(800, 600);
+////	int scenes[4] = {0,1,2,3};
+////	//char aa[5] = "xxds";
+////	//setClientID(aa);
+////	//setHDRname("白天3.hdr");
+////	//setScenes(scenes, 4);
+////	//setCameraType(1);
+////	skpCloudRender("D:\workspace\skp2ess\skp2ess\x64\Release\skp2ess.exe", "D:/workspace/skp2ess/skp2ess/2012.skp", "bug", "bug", "png", "D:/", "/"); 
+////}
+////
+////int main(int argc, char* argv[])
+////{
+////	apiInitial(argv[0]);
+////	//skpCloudRender(argv[0], "D:/284.skp", "chugui4", "chugui4", "png", "D:/", "/"); 
+////	//apiUninitial();
+////	new_thread(NULL);
+////	//_beginthread(new_thread, 0, NULL);
+////	system("pause");
+////	return 0;
+////}
