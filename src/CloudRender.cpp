@@ -203,6 +203,7 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	std::string filename_encoded = g_cri.ch.escape(string_To_UTF8(filename));
 	std::string prefix_encoded = g_cri.ch.escape(string_To_UTF8(outputprefix));
 	std::string project_encoded = g_cri.ch.escape(string_To_UTF8(projectfolder));
+	std::string server_output_dir_encoded = g_cri.ch.escape(string_To_UTF8(g_cri.server_output_dir));
 	url_render_task +=  "/api/web/v2/job/submit?";
 	url_render_task +=  "username=";
 	url_render_task +=  username;
@@ -226,7 +227,9 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 	url_render_task +=  "\"project_dir\":\"";
 	url_render_task +=  project_encoded;
 	url_render_task +=  "\",";
-	url_render_task +=  "\"output_dir\":\"/output_image/\",";
+	url_render_task +=  "\"output_dir\":\"";
+	url_render_task +=  server_output_dir_encoded;
+	url_render_task +=  "\",";
 	url_render_task +=  "\"image_width\":\"";
 	url_render_task +=  res_x;
 	url_render_task +=  "\",";
@@ -258,7 +261,7 @@ int submit_task(const char* exePath, const char* filename, const char* outputpre
 			{
 				char c_i[8] = "";
 				sprintf(c_i, "%d", i);
-				url_render_task += "\"inst_SceneCamera_";
+				url_render_task += "\"_Camera_";
 				url_render_task += c_i;
 				url_render_task += "\",";
 			}

@@ -43,6 +43,7 @@ struct cloud_render_info
 	std::string username;
 	std::string password;
 	std::string token;
+	std::string server_output_dir;
 	std::string job_ids[MAX_MODEL_SCENES];
 	std::string jobwork_ids[MAX_MODEL_SCENES];
 	cloud_render_info()
@@ -68,6 +69,7 @@ struct cloud_render_info
 		username = "30466622";
 		password = "a123456";
 		finished_tasks = 0;
+		server_output_dir = "/output_image/";
 	}
 	void initial(char *exePath)
 	{

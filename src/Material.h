@@ -27,6 +27,7 @@ struct MaterialInfo {
 	bool has_texture_;
 	std::string texture_name_;
 	std::string texture_path_;
+	std::string texture_bump_path_;
 	double texture_sscale_;
 	double texture_tscale_;
 };

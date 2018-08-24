@@ -177,5 +177,8 @@ extern "C" __declspec(dllexport) void setHDRname(char *hdr_name);
  */
 extern "C" __declspec(dllexport) void setHDRmultipler(float multipler);
 
+/** 功能：设置服务器输出图像的目录
+ */
+extern "C" __declspec(dllexport) void setServerOutputDir(char *dir);
 
 #endif

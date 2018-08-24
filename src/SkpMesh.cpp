@@ -34,10 +34,12 @@ static const std::string INSTANCE_EXT = "_instance";
 static const std::string DEFAULT_MTL_NAME = "default_mtl";
 static const std::string ESS_RENDER_PATH = "highmodel_path";
 static const std::string TEXTURE_RENDER_PATH = "texture_path";
+static const std::string TEXTURE_BUMP_PATH = "bump_path";
 static const std::string QUAD_LIGHT_SYMBOL = "quadlight";
 static const std::string IES_LIGHT_SYMBOL = "ieslight";
 static const std::string PORTAL_LIGHT_SYMBOL = "portallight";
 static const std::string EXCLUDE_LIGHT = "exclude_light";
+static const std::string G_UID = "g_uid";
 static const int default_width = 1280;
 static const int default_height = 720;
 static const float REMOVE_VERTEX_EPS = 0.00000001;
@@ -45,6 +47,10 @@ static const float COMBINE_NORMAL_THRESHOLD = std::cos(radians(70));
 static const float INCH2MM = 25.4;
 
 static std::string MAT_PATH;
+
+typedef std::tr1::unordered_map<std::string, std::string> StringLink;
+StringLink excluded_light;
+std::vector<std::string> all_light_inst_name;
 
 skp2ess_set g_skp2ess_set;
 
@@ -131,11 +137,12 @@ static std::vector<std::string> mat_list;
 typedef std::vector<EH_Light> LightsVector;
 static LightsVector light_vector;
 
-static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform, SUMaterialRef parent_mat, std::string par_tex_path);
+static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform, SUMaterialRef parent_mat, std::string par_tex_path, std::string par_bump_path);
 static void convert_mesh_and_mtl(EH_Context *ctx, const std::string &mtl_name, Vertex *vertex, const std::string &poly_name);
 static void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScale &uv_scale);
 static void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref);
 static void export_light(EH_Context *ctx);
+static void exclude_light(EH_Context *ctx);
 static void import_mat_list();
 static void release_all_res();
 static EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal);
@@ -241,10 +248,10 @@ int get_entity_attribute(SUEntityRef entity, const char* dict_name, const char* 
 	return copied;
 }
 
-static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMaterialRef w_par_mat, EH_Context *ctx, std::string &tex_path)
+static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMaterialRef w_par_mat, EH_Context *ctx, std::string &tex_path, std::string &bump_path)
 {
 	//SUMaterialRef null_mat = SU_INVALID;
-	export_mesh_mtl_from_entities(entities, &t, w_par_mat, tex_path);
+	export_mesh_mtl_from_entities(entities, &t, w_par_mat, tex_path, bump_path);
 
 	size_t num_instances = 0;
 	SU_CALL(SUEntitiesGetNumInstances(entities, &num_instances));
@@ -303,6 +310,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 					std::string light_inst_name = light_name;
 					light_inst_name += INSTANCE_EXT;
 					memcpy(include_inst.light_exclude, light_inst_name.c_str(), light_inst_name.size() + 1);
+					excluded_light.insert(StringLink::value_type(include_inst_name, light_name));
 				}
 
 				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
@@ -360,6 +368,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				sprintf(light.light_name, "%s", light_name.utf8().c_str());
 
 				light_vector.push_back(light);
+				all_light_inst_name.push_back(std::string(light.light_name) + "_instance");
 				continue;
 			}
 			else if (get_entity_attribute(en, "info", QUAD_LIGHT_SYMBOL.c_str(), render_path))
@@ -462,6 +471,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 					sprintf(light.light_name, "%s", light_name.utf8().c_str());
 
 					light_vector.push_back(light);
+					all_light_inst_name.push_back(std::string(light.light_name) + "_instance");
 				}
 				continue;
 			}
@@ -565,6 +575,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 					sprintf(light.light_name, "%s", light_name.utf8().c_str());
 
 					light_vector.push_back(light);
+					all_light_inst_name.push_back(std::string(light.light_name) + "_instance");
 				}
 				continue;
 			}
@@ -573,6 +584,10 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 			memset(render_path, 0, MAX_PATH * sizeof(char));
 			get_entity_attribute(en, "info", TEXTURE_RENDER_PATH.c_str(), render_path);
 			std::string par_tex(render_path);
+			
+			memset(render_path, 0, MAX_PATH * sizeof(char));
+			get_entity_attribute(en, "info", TEXTURE_BUMP_PATH.c_str(), render_path);
+			std::string bump_tex(render_path);
 
 			SUEntitiesRef c_entities;
 			SUComponentDefinitionGetEntities(definition, &c_entities);
@@ -580,7 +595,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 			SUMaterialRef material = SU_INVALID;
 			SUDrawingElementGetMaterial(SUComponentInstanceToDrawingElement(instance), &material);
 			//export_mesh_mtl_from_entities(c_entities, &transform_mul, material, par_tex);
-			writeEntities(c_entities, transform_mul, material, ctx, par_tex);
+			writeEntities(c_entities, transform_mul, material, ctx, par_tex, bump_tex);
 		}
 	}
 
@@ -621,6 +636,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 
 			// get ess_path	
 			SUEntityRef en = SUComponentDefinitionToEntity(group_component);
+			SUEntityRef group_en = SUGroupToEntity(group);
 			char render_path[MAX_PATH] = "";
 			if (get_entity_attribute(en, "info", ESS_RENDER_PATH.c_str(), render_path))
 			{
@@ -654,6 +670,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 					std::string light_inst_name = light_name;
 					light_inst_name += INSTANCE_EXT;
 					memcpy(include_inst.light_exclude, light_inst_name.c_str(), light_inst_name.size() + 1);
+					excluded_light.insert(StringLink::value_type(light_name, light_inst_name));
 				}
 
 				EH_add_assembly_instance(ctx, include_inst_name.c_str(), &include_inst); /* include_test_ess 是ESS中节点的名字 不能重名 */
@@ -706,11 +723,18 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 				light_mat.m[3][2] = transform_mul.values[14];	
 				memcpy(light.light_to_world, &light_mat.m[0], sizeof(light.light_to_world));
 
-				CSUString light_name;
-				SUComponentDefinitionGetName(group_component, light_name);
-				sprintf(light.light_name, "%s", light_name.utf8().c_str());
-
+				if (get_entity_attribute(group_en, "info", G_UID.c_str(), temp_buf))
+				{
+					sprintf(light.light_name, "%s", temp_buf);
+				}
+				else
+				{
+					CSUString light_name;
+					SUComponentDefinitionGetName(group_component, light_name);
+					sprintf(light.light_name, "%s_%d", light_name.utf8().c_str(), group_i);
+				}
 				light_vector.push_back(light);
+				all_light_inst_name.push_back(std::string(light.light_name) + "_instance");
 				continue;
 			}
 			else if (get_entity_attribute(en, "info", QUAD_LIGHT_SYMBOL.c_str(), render_path))
@@ -808,11 +832,18 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 						light.visible = EI_FALSE;
 					}
 
-					CSUString light_name;
-					SUComponentDefinitionGetName(group_component, light_name);
-					sprintf(light.light_name, "%s", light_name.utf8().c_str());
-
+					if (get_entity_attribute(group_en, "info", G_UID.c_str(), temp_buf))
+					{
+						sprintf(light.light_name, "%s", temp_buf);
+					}
+					else
+					{
+						CSUString light_name;
+						SUComponentDefinitionGetName(group_component, light_name);
+						sprintf(light.light_name, "%s_%d", light_name.utf8().c_str(), group_i);
+					}
 					light_vector.push_back(light);
+					all_light_inst_name.push_back(std::string(light.light_name) + "_instance");
 				}
 				continue;
 			}
@@ -911,11 +942,18 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 						light.visible = EI_FALSE;
 					}
 
-					CSUString light_name;
-					SUComponentDefinitionGetName(group_component, light_name);
-					sprintf(light.light_name, "%s", light_name.utf8().c_str());
-
+					if (get_entity_attribute(group_en, "info", G_UID.c_str(), temp_buf))
+					{
+						sprintf(light.light_name, "%s", temp_buf);
+					}
+					else
+					{
+						CSUString light_name;
+						SUComponentDefinitionGetName(group_component, light_name);
+						sprintf(light.light_name, "%s_%d", light_name.utf8().c_str(), group_i);
+					}
 					light_vector.push_back(light);
+					all_light_inst_name.push_back(std::string(light.light_name) + "_instance");
 				}
 				continue;
 			}
@@ -925,6 +963,10 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 			get_entity_attribute(en, "info", TEXTURE_RENDER_PATH.c_str(), render_path);
 			std::string par_tex(render_path);
 
+			memset(render_path, 0, MAX_PATH * sizeof(char));
+			get_entity_attribute(en, "info", TEXTURE_BUMP_PATH.c_str(), render_path);
+			std::string bump_tex(render_path);
+
 			SUEntitiesRef c_entities;
 			SUGroupGetEntities(group, &c_entities);
 
@@ -932,13 +974,17 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 			SUDrawingElementGetMaterial(SUGroupToDrawingElement(group), &material);
 
 			//export_mesh_mtl_from_entities(c_entities, &transform_mul, material, par_tex);
-			writeEntities(c_entities, transform_mul, material, ctx, par_tex);
+			writeEntities(c_entities, transform_mul, material, ctx, par_tex, bump_tex);
 		}
 	}
 }
 
 bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 {	
+	// initialize container states
+	excluded_light.clear();
+	all_light_inst_name.clear();
+
 	// Always initialize the API before using it
 	SUInitialize();
 
@@ -1085,7 +1131,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 				}
 
 				char inst_name[128] = "";
-				sprintf(inst_name, "SceneCamera_%d", index);
+				sprintf(inst_name, "Camera_%d", index);
 				EH_add_camera(ctx, &eh_cam, inst_name);
 			}
 		}
@@ -1123,7 +1169,7 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	t.values[0] = t.values[5] = t.values[10] = t.values[15] = 1;
 
 	SUMaterialRef null_mat = SU_INVALID;
-	writeEntities(entities, t, null_mat, ctx, std::string(""));
+	writeEntities(entities, t, null_mat, ctx, std::string(""), std::string(""));
 
 	int poly_index = 0;
 	for (MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin();
@@ -1141,6 +1187,8 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	g_mtl_map.clear();
 
 	export_light(ctx);
+
+	exclude_light(ctx);
 
 	// Must release the model or there will be memory leaks
 	SUModelRelease(&model);
@@ -1241,6 +1289,16 @@ static void convert_to_eh_mtl(EH_Material &eh_mtl, SUMaterialRef skp_mtl, UVScal
 	if (mtl_info.texture_path_.size() > 0)
 	{
 		eh_mtl.diffuse_tex.filename = mtl_info.texture_path_.c_str();
+		//eh_mtl.diffuse_tex.repeat_u = mtl_info.texture_sscale_;
+		//eh_mtl.diffuse_tex.repeat_v = mtl_info.texture_tscale_;
+	}
+	if (mtl_info.texture_bump_path_.size() > 0)
+	{
+		eh_mtl.normal_bump = false;
+		eh_mtl.bump_weight = 1.0f;
+		eh_mtl.bump_tex.filename = mtl_info.texture_bump_path_.c_str();
+		//eh_mtl.bump_tex.repeat_u = mtl_info.texture_sscale_;
+		//eh_mtl.bump_tex.repeat_v = mtl_info.texture_tscale_;
 	}
 	if (mtl_info.has_alpha_)
 	{
@@ -1315,7 +1373,7 @@ static void convert_to_eh_camera(EH_Camera &cam, SUCameraRef su_cam_ref)
 }
 
 // w_par_mat 为了处理材质的递归，par_tex_path则是专门针对过家家项目指定材质的纹理贴图位置
-static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform, SUMaterialRef parent_mat, std::string par_tex_path)
+static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformation *transform, SUMaterialRef parent_mat, std::string par_tex_path, std::string par_bump_path)
 {
 	size_t faceCount = 0;	
 	const size_t MAX_NAME_LENGTH = 128;
@@ -1370,6 +1428,7 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 					memcpy(light.light_to_world, &ei_tran.m[0], sizeof(light.light_to_world));
 
 					light_vector.push_back(light);
+					all_light_inst_name.push_back(std::string(light.light_name) + "_instance");
 
 					continue;
 				}
@@ -1380,6 +1439,11 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 					{
 						g_material_container.materialinfos[material_index].texture_path_ = par_tex_path;
 					}
+					if (par_bump_path.size() > 0)
+					{
+						g_material_container.materialinfos[material_index].texture_bump_path_ = par_bump_path;
+					}
+					
 					MtlMap::iterator it = g_mtl_map.find(material_name);
 					if (it == g_mtl_map.end())
 					{
@@ -1418,6 +1482,11 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 					{
 						g_material_container.materialinfos[material_index].texture_path_ = par_tex_path;
 					}
+					if (par_bump_path.size() > 0)
+					{
+						g_material_container.materialinfos[material_index].texture_bump_path_ = par_bump_path;
+					}
+
 					MtlMap::iterator it = g_mtl_map.find(material_name);
 					if (it == g_mtl_map.end())
 					{
@@ -1571,8 +1640,6 @@ static void export_light(EH_Context *ctx)
 	{
 		EH_add_light(ctx, light_vector[i].light_name, &light_vector[i]);
 	}
-
-	light_vector.clear();
 }
 
 #ifdef _MSC_VER
@@ -1588,6 +1655,14 @@ static std::wstring to_utf16(std::string str)
 	return ret;
 }
 #endif
+
+static void exclude_light(EH_Context *ctx)
+{
+	for (StringLink::iterator iter = excluded_light.begin(); iter != excluded_light.end(); ++ iter)
+	{
+		EH_instance_exclude_light(ctx, iter->first.c_str(), iter->second.c_str(), all_light_inst_name);
+	}
+}
 
 static void release_all_res()
 {
@@ -1776,4 +1851,5 @@ static void set_sun(EH_Context *ctx, EH_Vec2 &dir)
 	sun.intensity = 50.0f;
 	sun.soft_shadow = 1.0f;
 	EH_set_sun(ctx, &sun);
+	all_light_inst_name.push_back("elara_sun_instance");
 }

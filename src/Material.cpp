@@ -71,6 +71,7 @@ void GetMaterialInfo(SUMaterialRef material)
 			// Set texture full path
 			//info.texture_path_ = std::string(texPath);
 			info.texture_path_ = "";
+			info.texture_bump_path_ = "";
 
 			// Texture scale
 			size_t width = 0;
