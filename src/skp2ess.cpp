@@ -243,9 +243,9 @@ void new_thread(void *param)
 	//char aa[5] = "xxds";
 	//setClientID(aa);
 	//setHDRname("白天3.hdr");
-	setScenes(scenes, 2);
+	//setScenes(scenes, 2);
 	//setCameraType(1);
-	skpCloudRender("D:\workspace\skp2ess\skp2ess\x64\Release\skp2ess.exe", "D:/workspace/skp2ess/skp2ess/240.skp", "bug", "bug", "png", "D:/", "/"); 
+	skpCloudRender("D:\workspace\skp2ess\skp2ess\x64\Release\skp2ess.exe", "D:/workspace/skp2ess/skp2ess/3401.skp", "bug", "bug", "png", "D:/", "/"); 
 }
 
 int main(int argc, char* argv[])

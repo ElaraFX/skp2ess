@@ -51,6 +51,7 @@ static std::string MAT_PATH;
 typedef std::tr1::unordered_map<std::string, std::string> StringLink;
 StringLink excluded_light;
 std::vector<std::string> all_light_inst_name;
+bool has_portal = false;
 
 skp2ess_set g_skp2ess_set;
 
@@ -147,9 +148,9 @@ static void import_mat_list();
 static void release_all_res();
 static EH_Camera create_camera_from_pos_normal(const eiVector &pos, const eiVector &normal);
 static void fix_inf_vertex(eiVector &v);
-static void set_day_exposure(EH_Context *ctx, skp2ess_set *ss);
-static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss);
-static void set_outworld_day_exposure(EH_Context *ctx, skp2ess_set *ss);
+static void set_day_exposure(EH_Context *ctx, skp2ess_set *ss, bool has_portal);
+static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss, bool has_portal);
+static void set_outworld_day_exposure(EH_Context *ctx, skp2ess_set *ss, bool has_portal);
 static void set_sun(EH_Context *ctx, EH_Vec2 &dir);
 
 #ifdef _MSC_VER
@@ -849,6 +850,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 			}
 			else if (get_entity_attribute(en, "info", PORTAL_LIGHT_SYMBOL.c_str(), render_path))
 			{
+				has_portal = true;
 				size_t faceCount = 0;	
 				const size_t MAX_NAME_LENGTH = 128;
 				SUEntitiesRef sub_entities;
@@ -982,6 +984,7 @@ static void writeEntities(SUEntitiesRef &entities, SUTransformation &t, SUMateri
 bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 {	
 	// initialize container states
+	has_portal = false;
 	excluded_light.clear();
 	all_light_inst_name.clear();
 
@@ -1062,20 +1065,71 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 	}
 	SUTypedValueRelease(&dir_val);
 
+	// Get all materials
+	GetAllMaterials(model);	
+
+	// Get all the faces from the entities object
+	//export_mesh_mtl_from_entities(entities);
+
+	// Get external component entities
+	/*size_t component_num;
+	SUModelGetNumComponentDefinitions(model, &component_num);
+	if(component_num > 0)
+	{
+		std::vector<SUComponentDefinitionRef> definitions(component_num);
+		SUModelGetComponentDefinitions(model, component_num, &definitions[0], &component_num);		
+
+		for (int ci = 0; ci < component_num; ++ci)
+		{
+			SUComponentDefinitionRef &com = definitions[ci];
+			SUPoint3D p;
+			SUComponentDefinitionGetInsertPoint(com, &p);
+
+			SUEntitiesRef c_entities;
+			SUComponentDefinitionGetEntities(com, &c_entities);
+
+			export_mesh_mtl_from_entities(c_entities);
+		}
+	}*/
+
+	SUTransformation t;
+	memset(t.values, 0, sizeof(double) * 16);
+	t.values[0] = t.values[5] = t.values[10] = t.values[15] = 1;
+
+	SUMaterialRef null_mat = SU_INVALID;
+	writeEntities(entities, t, null_mat, ctx, std::string(""), std::string(""));
+
+	int poly_index = 0;
+	for (MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin();
+		iter != g_mtl_to_vertex_map.end(); ++iter)
+	{
+		char poly_name[EI_MAX_FILE_NAME_LEN];
+		sprintf(poly_name, "ploy_mesh_%d", poly_index);
+		convert_mesh_and_mtl(ctx, iter->first, iter->second, poly_name);
+
+		delete iter->second;
+
+		++poly_index;
+	}
+	g_mtl_to_vertex_map.clear();
+	g_mtl_map.clear();
+
+	export_light(ctx);
+
 	//add exposure	
 	//set_outworld_day_exposure(ctx);
 	if (g_skp2ess_set.exposure_type == ET_DAY)
 	{
-		set_day_exposure(ctx, &g_skp2ess_set);	
+		set_day_exposure(ctx, &g_skp2ess_set, has_portal);	
 		set_sun(ctx, sun_dir);
 	}
 	else if (g_skp2ess_set.exposure_type == ET_NIGHT)
 	{
-		set_night_exposure(ctx, &g_skp2ess_set);
+		set_night_exposure(ctx, &g_skp2ess_set, has_portal);
 	}
 	else
 	{
-		set_outworld_day_exposure(ctx, &g_skp2ess_set);	
+		set_outworld_day_exposure(ctx, &g_skp2ess_set, has_portal);	
 		set_sun(ctx, sun_dir);
 	}
 	
@@ -1136,57 +1190,6 @@ bool skp_to_ess(const char *skp_file_name, EH_Context *ctx)
 			}
 		}
 	}
-
-	// Get all materials
-	GetAllMaterials(model);	
-
-	// Get all the faces from the entities object
-	//export_mesh_mtl_from_entities(entities);
-
-	// Get external component entities
-	/*size_t component_num;
-	SUModelGetNumComponentDefinitions(model, &component_num);
-	if(component_num > 0)
-	{
-		std::vector<SUComponentDefinitionRef> definitions(component_num);
-		SUModelGetComponentDefinitions(model, component_num, &definitions[0], &component_num);		
-
-		for (int ci = 0; ci < component_num; ++ci)
-		{
-			SUComponentDefinitionRef &com = definitions[ci];
-			SUPoint3D p;
-			SUComponentDefinitionGetInsertPoint(com, &p);
-
-			SUEntitiesRef c_entities;
-			SUComponentDefinitionGetEntities(com, &c_entities);
-
-			export_mesh_mtl_from_entities(c_entities);
-		}
-	}*/
-
-	SUTransformation t;
-	memset(t.values, 0, sizeof(double) * 16);
-	t.values[0] = t.values[5] = t.values[10] = t.values[15] = 1;
-
-	SUMaterialRef null_mat = SU_INVALID;
-	writeEntities(entities, t, null_mat, ctx, std::string(""), std::string(""));
-
-	int poly_index = 0;
-	for (MtlVertexMap::iterator iter = g_mtl_to_vertex_map.begin();
-		iter != g_mtl_to_vertex_map.end(); ++iter)
-	{
-		char poly_name[EI_MAX_FILE_NAME_LEN];
-		sprintf(poly_name, "ploy_mesh_%d", poly_index);
-		convert_mesh_and_mtl(ctx, iter->first, iter->second, poly_name);
-
-		delete iter->second;
-
-		++poly_index;
-	}
-	g_mtl_to_vertex_map.clear();
-	g_mtl_map.clear();
-
-	export_light(ctx);
 
 	exclude_light(ctx);
 
@@ -1397,6 +1400,10 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 			SUMeshHelperRef mesh_ref = SU_INVALID;
 			SUMeshHelperCreate(&mesh_ref, face_data);
 
+			// get face entity
+			SUEntityRef face_en = SUFaceToEntity(face_data);
+			char tex_path[MAX_PATH] = "";
+
 			//Get material index
 			UVScale uv_scale;
 			std::string mat_name = DEFAULT_MTL_NAME;
@@ -1435,11 +1442,27 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 				int material_index = g_material_container.FindIndexWithString(material_name);
 				if (material_index != -1)
 				{
-					if (par_tex_path.size() > 0)
+					// get texture_path	
+					memset(tex_path, 0, MAX_PATH * sizeof(char));
+					get_entity_attribute(face_en, "info", TEXTURE_RENDER_PATH.c_str(), tex_path);
+					std::string face_tex(tex_path);
+					if (face_tex.size() > 0)
+					{
+						g_material_container.materialinfos[material_index].texture_path_ = face_tex;
+					}
+					else if (par_tex_path.size() > 0)
 					{
 						g_material_container.materialinfos[material_index].texture_path_ = par_tex_path;
 					}
-					if (par_bump_path.size() > 0)
+
+					memset(tex_path, 0, MAX_PATH * sizeof(char));
+					get_entity_attribute(face_en, "info", TEXTURE_BUMP_PATH.c_str(), tex_path);
+					std::string face_bump_tex(tex_path);
+					if (face_bump_tex.size() > 0)
+					{
+						g_material_container.materialinfos[material_index].texture_bump_path_ = face_bump_tex;
+					}
+					else if (par_bump_path.size() > 0)
 					{
 						g_material_container.materialinfos[material_index].texture_bump_path_ = par_bump_path;
 					}
@@ -1478,11 +1501,27 @@ static void export_mesh_mtl_from_entities(SUEntitiesRef entities, SUTransformati
 				int material_index = g_material_container.FindIndexWithString(material_name);
 				if (material_index != -1)
 				{
-					if (par_tex_path.size() > 0)
+					// get texture_path	
+					memset(tex_path, 0, MAX_PATH * sizeof(char));
+					get_entity_attribute(face_en, "info", TEXTURE_RENDER_PATH.c_str(), tex_path);
+					std::string face_tex(tex_path);
+					if (face_tex.size() > 0)
+					{
+						g_material_container.materialinfos[material_index].texture_path_ = face_tex;
+					}
+					else if (par_tex_path.size() > 0)
 					{
 						g_material_container.materialinfos[material_index].texture_path_ = par_tex_path;
 					}
-					if (par_bump_path.size() > 0)
+
+					memset(tex_path, 0, MAX_PATH * sizeof(char));
+					get_entity_attribute(face_en, "info", TEXTURE_BUMP_PATH.c_str(), tex_path);
+					std::string face_bump_tex(tex_path);
+					if (face_bump_tex.size() > 0)
+					{
+						g_material_container.materialinfos[material_index].texture_bump_path_ = face_bump_tex;
+					}
+					else if (par_bump_path.size() > 0)
 					{
 						g_material_container.materialinfos[material_index].texture_bump_path_ = par_bump_path;
 					}
@@ -1733,7 +1772,7 @@ static void fix_inf_vertex(eiVector &v)
 	}
 }
 
-static void set_day_exposure(EH_Context *ctx, skp2ess_set *ss)
+static void set_day_exposure(EH_Context *ctx, skp2ess_set *ss, bool has_portal)
 {
 	EH_Exposure day_expo;
 	if (!ss->exp_val_on)
@@ -1762,11 +1801,12 @@ static void set_day_exposure(EH_Context *ctx, skp2ess_set *ss)
 	}
 	sky.hdri_rotation = radians(0);
 	sky.intensity = ss->enviroment_hdr_multipler;
-	sky.enable_emit_GI = true;
+	if (has_portal) sky.enable_emit_GI = false;
+	else sky.enable_emit_GI = true;
 	EH_set_sky(ctx, &sky);
 }
 
-static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss)
+static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss, bool has_portal)
 {
 	EH_Exposure night_expo;
 	if (!ss->exp_val_on)
@@ -1800,11 +1840,12 @@ static void set_night_exposure(EH_Context *ctx, skp2ess_set *ss)
 	}
 	sky.hdri_rotation = radians(0);
 	sky.intensity = ss->enviroment_hdr_multipler;
-	sky.enable_emit_GI = true;
+	if (has_portal) sky.enable_emit_GI = false;
+	else sky.enable_emit_GI = true;
 	EH_set_sky(ctx, &sky);
 }
 
-static void set_outworld_day_exposure(EH_Context *ctx, skp2ess_set *ss)
+static void set_outworld_day_exposure(EH_Context *ctx, skp2ess_set *ss, bool has_portal)
 {
 	EH_Exposure day_expo;
 	if (!ss->exp_val_on)
@@ -1837,7 +1878,8 @@ static void set_outworld_day_exposure(EH_Context *ctx, skp2ess_set *ss)
 	}
 	sky.hdri_rotation = radians(0);
 	sky.intensity = ss->enviroment_hdr_multipler;
-	sky.enable_emit_GI = true;
+	if (has_portal) sky.enable_emit_GI = false;
+	else sky.enable_emit_GI = true;
 	EH_set_sky(ctx, &sky);
 }
 
